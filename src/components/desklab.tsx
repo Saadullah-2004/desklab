@@ -125,6 +125,12 @@ function Modal({
           first?.focus();
         }
       }}
+      onCancel={(event) => {
+        // Keep React state in sync before focus returns to the opener. Native
+        // dismissal queues close later, allowing a quick reopen to reuse stale state.
+        event.preventDefault();
+        onClose();
+      }}
       onClose={(event) => {
         // React's development effect replay can queue a close event before reopening.
         if (!event.currentTarget.open) onClose();

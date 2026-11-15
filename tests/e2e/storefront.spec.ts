@@ -123,11 +123,15 @@ test('collection filtering, product details and Escape dismissal work', async ({
   await expect(
     detail.getByRole('button', {name: 'Add to bag', exact: true}),
   ).toBeEnabled();
-  await page.keyboard.press('Escape');
-  await expect(detail).toHaveCount(0);
-  await expect(productButton).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(detail).toBeVisible();
+  // Reopen immediately from restored focus. Waiting for a render frame here
+  // would hide a race between native dialog dismissal and React state cleanup.
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await page.keyboard.press('Escape');
+    await expect(detail).toHaveCount(0);
+    await expect(productButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(detail).toBeVisible();
+  }
   await detail.getByRole('button', {name: 'Close Hush 75'}).click();
   await expect(detail).toHaveCount(0);
   await expect(productButton).toBeFocused();
