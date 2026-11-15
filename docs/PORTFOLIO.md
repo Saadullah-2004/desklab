@@ -1,5 +1,7 @@
 # DeskLab portfolio notes
 
+[Live demo](https://desklab-saadullah-2004.vercel.app) · Hosted on Vercel Hobby
+
 ## One-sentence description
 
 DeskLab is a 3D workspace configurator and headless Shopify storefront that turns a budget, available desk space and style preferences into a compatible product setup.
@@ -15,13 +17,17 @@ Next.js, TypeScript, React Three Fiber, Shopify Storefront API, Playwright
 - Integrated Shopify catalog, cart and hosted checkout with server-side variant, CAD price and stock validation; verified successful and declined payments through Shopify's test gateway.
 - Added distributed API quotas, origin validation, bounded requests, privacy-conscious diagnostics and separate gates for live AI and sandbox checkout.
 
-These bullets describe implemented functionality and verified test-mode checkout. Local production browser checks pass, the free Redis connection and one live limiter reservation have been verified, and the personal Vercel workspace is on Hobby. Repository connection, public deployment, Gemini setup and live AI evaluation remain pending. There is no physical fulfillment.
+These bullets describe implemented functionality and verified test-mode checkout. Local production browser checks pass, the free Redis connection and one live limiter reservation have been verified, and a 12-case local live Gemini evaluation passed. The Vercel Hobby site is deployed and basic public integration checks passed. Deployed AI and checkout-return verification remain pending. There is no physical fulfillment.
 
 An optional AI-focused bullet:
 
 - Designed schema-validated preference extraction with a fixed free-tier model, distributed request caps and deterministic fallback; improved a 12-case rules regression set from 8 to 12 exact matches while keeping every recommendation within tested constraints.
 
-The evaluation bullet refers to the local rules parser. It does not claim a live Gemini result, general language accuracy or measured savings.
+That evaluation bullet refers to the local rules parser. A separately verified AI-focused alternative is:
+
+- Integrated Gemini structured preference extraction with a deterministic commerce planner; verified 12/12 exact preferences and constraint checks on a bounded synthetic live-provider evaluation, with zero fallback results.
+
+The live run used the same small development fixture set as the corrected rules baseline. It does not establish general language accuracy, superiority to rules, production reliability or measured savings.
 
 ## Short project summary
 
@@ -36,7 +42,7 @@ I built DeskLab to make a storefront behave like a useful design tool. A shopper
 5. Add the setup to the bag, adjust a quantity and reload to show persistence.
 6. Explain the commerce boundary: checkout re-fetches Shopify variants and inventory. Continue to the configured test checkout and describe the verified successful-order and declined-payment paths. Use test payment details only.
 
-Keep the demo's current engine visible. It uses rule-based brief parsing; do not present it as a live LLM recommendation.
+Keep the demo's actual engine visible: `gemini` for successful live extraction and `rules` for empty briefs, disabled AI or fallback. The completed local provider evaluation does not establish that any particular deployed request used Gemini.
 
 ## Engineering decisions to discuss
 
@@ -62,4 +68,8 @@ As of November 15, 2026, the full backend suite passed 105/105 tests. The produc
 
 The offline rules evaluation passed 12/12 exact preference checks, 48/48 field checks and 12/12 constraint checks. It made no model requests. The social image was rendered and visually inspected, and metadata tests cover route canonicals, API exclusion and preview noindex behavior.
 
-No public site has been deployed. A personal Upstash $0 Free database was created without a payment method and connected through private local configuration. Authenticated PING and the application's live limiter EVAL allow path succeeded; exhaustion behavior has not been exercised against the provider. The personal Vercel workspace is signed in and verified as Hobby, with its repository connection and deployment still pending. Gemini setup, live AI evaluation and deployed smoke checks also remain pending. There are no measured performance, business-impact, live model-quality or cost-saving results to put on a resume. The [README runbook](../README.md#free-only-deployment-runbook) describes remaining checks and the free-only operating constraint.
+A separate local live run completed November 15, 2026 at 18:37 UTC using `gemini-3.5-flash-lite`. It returned 12/12 Gemini successes, 12/12 exact preferences, 48/48 fields and 12/12 constraint checks, with no rules fallback. Each saved row was compared with the fixtures and current planner. The fictional catalog was used, and no Shopify checkout or deployed endpoint was exercised by that evaluation.
+
+The personal Vercel Hobby project is deployed with production-only server configuration. Four public smoke requests passed against revision `a0f3977`: homepage and production headers, health readiness, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage loads in a browser. The smoke observed checkout enabled but created no cart, order or model call. Deployed Gemini and checkout-return checks remain pending. Four focused Chromium/WebKit checks passed for subsequent frontend fixes that still need publication and deployed verification.
+
+A personal Upstash $0 Free database was created without a payment method. Authenticated PING and the application's live limiter EVAL allow path succeeded; exhaustion behavior has not been exercised against the provider. A separate AI Studio console check confirmed the personal Gemini project is Free Tier with Cloud Billing not enabled. No general accuracy, performance, business-impact or cost-saving claims are supported by the small evaluation fixture set. The [README runbook](../README.md#free-only-deployment-runbook) describes remaining checks and the free-only operating constraint.

@@ -163,7 +163,8 @@ export default function DeskLab({page}: {page: Page}) {
   const [hydrated, setHydrated] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [detail, setDetail] = useState<Product | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = catalog.find((product) => product.id === detailId) ?? null;
   const [notice, setNotice] = useState('');
   const [preferences, setPreferences] = useState(DEFAULTS);
   const [brief, setBrief] = useState('');
@@ -197,6 +198,11 @@ export default function DeskLab({page}: {page: Page}) {
       .then((data) => {
         if (!cancelled) {
           setCatalog(data.products);
+          setDetailId((id) =>
+            data.products.some((product: Product) => product.id === id)
+              ? id
+              : null,
+          );
           setSource(data.source);
           setCheckoutEnabled(data.checkoutEnabled);
           setCatalogError('');
@@ -349,7 +355,7 @@ export default function DeskLab({page}: {page: Page}) {
     // WebKit does not focus buttons on pointer activation. Preserve the actual
     // opener so closing a modal returns to the same place for every input method.
     trigger.focus({preventScroll: true});
-    setDetail(product);
+    setDetailId(product.id);
   }
   function openCart(trigger?: HTMLButtonElement) {
     trigger?.focus({preventScroll: true});
@@ -414,6 +420,9 @@ export default function DeskLab({page}: {page: Page}) {
       if (id !== requestRef.current) return;
       const result = data as Result;
       setCatalog(result.catalogSnapshot);
+      setDetailId((id) =>
+        result.catalogSnapshot.some((product) => product.id === id) ? id : null,
+      );
       setSource(result.catalogSource);
       setCheckoutEnabled(result.checkoutEnabled);
       setEngineNotices(result.notices);
@@ -1202,7 +1211,7 @@ export default function DeskLab({page}: {page: Page}) {
         </div>
       )}
       {detail && (
-        <Modal title={detail.name} onClose={() => setDetail(null)} wide>
+        <Modal title={detail.name} onClose={() => setDetailId(null)} wide>
           <div className="product-detail">
             <ProductVisual product={detail} />
             <div>
@@ -1240,7 +1249,7 @@ export default function DeskLab({page}: {page: Page}) {
                 }
                 onClick={(event) => {
                   addToCart([detail], event.currentTarget);
-                  setDetail(null);
+                  setDetailId(null);
                 }}
               >
                 Add to bag <Plus size={17} />
@@ -1357,7 +1366,9 @@ export default function DeskLab({page}: {page: Page}) {
                     <strong>Explore freely. This is a demo.</strong>
                     <p>
                       {catalogError ||
-                        'Shopify checkout is not connected yet. Your bag stays saved on this device.'}
+                        (source === 'shopify'
+                          ? 'Test checkout is currently disabled. Your bag stays saved on this device.'
+                          : 'Shopify checkout is not connected yet. Your bag stays saved on this device.')}
                     </p>
                   </div>
                 </div>
@@ -1377,7 +1388,9 @@ export default function DeskLab({page}: {page: Page}) {
                   ? 'Opening secure checkout…'
                   : checkoutEnabled
                     ? 'Continue to test checkout'
-                    : 'Checkout not connected'}
+                    : source === 'shopify'
+                      ? 'Test checkout disabled'
+                      : 'Checkout not connected'}
                 <ArrowRight size={17} />
               </button>
               {checkoutError && (

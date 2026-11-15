@@ -135,6 +135,65 @@ test('collection filtering, product details and Escape dismissal work', async ({
   await expect(collectionCards(page)).toHaveCount(18);
 });
 
+test('open product details adopt delayed Shopify prices and stock, with honest disabled-checkout copy', async ({
+  page,
+}) => {
+  let releaseCatalog!: () => void;
+  const pendingCatalog = new Promise<void>((resolve) => {
+    releaseCatalog = resolve;
+  });
+  await page.route('**/api/catalog', async (route) => {
+    await pendingCatalog;
+    await route.fulfill({
+      json: {
+        products: products.map((product) =>
+          product.id === 'desk-arc-oak'
+            ? {...product, priceCents: 37900, available: false}
+            : product,
+        ),
+        source: 'shopify',
+        checkoutEnabled: false,
+      },
+    });
+  });
+  await page.goto('/shop', {waitUntil: 'domcontentloaded'});
+  const opener = page.getByRole('button', {name: 'View Arc Desk', exact: true});
+  const detail = page.getByRole('dialog', {name: 'Arc Desk', exact: true});
+  try {
+    await opener.click();
+    await expect(detail.getByText('$279 CAD', {exact: true})).toBeVisible();
+    await expect(detail.getByText('Available', {exact: true})).toBeVisible();
+    await expect(
+      detail.getByRole('button', {name: 'Add to bag', exact: true}),
+    ).toBeDisabled();
+  } finally {
+    releaseCatalog();
+  }
+  await expect(detail.getByText('$379 CAD', {exact: true})).toBeVisible();
+  await expect(detail.getByText('Out of stock', {exact: true})).toBeVisible();
+  await expect(
+    detail.getByRole('button', {name: 'Add to bag', exact: true}),
+  ).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(detail).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await page
+    .getByRole('button', {name: 'Add Form Desk to bag', exact: true})
+    .click();
+  await expect(
+    bag(page).getByText(
+      'Test checkout is currently disabled. Your bag stays saved on this device.',
+    ),
+  ).toBeVisible();
+  await expect(
+    bag(page).getByRole('button', {
+      name: 'Test checkout disabled',
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await expect(bag(page).getByText(/not connected/)).toHaveCount(0);
+});
+
 test('Chromium renders real WebGL and rotation changes the canvas', async ({
   page,
   browserName,

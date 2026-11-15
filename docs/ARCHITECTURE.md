@@ -2,6 +2,8 @@
 
 DeskLab combines a workspace configurator with a Shopify-backed store. The distinctive behavior is the shared constraint model: generated recommendations and manual product swaps must satisfy the same contract.
 
+[Production demo](https://desklab-saadullah-2004.vercel.app), hosted on Vercel Hobby. Basic deployed integration checks have passed; deployed AI and checkout-return verification remain pending.
+
 ## Ownership of data
 
 | Data or decision                                                             | Authority                                              |
@@ -37,13 +39,15 @@ A stock check is not a reservation. Shopify remains authoritative at final check
 
 ## Brief interpretation
 
-The current local demo uses rule-based extraction for explicit CAD budgets, centimeter/meter widths, documented palette synonyms and quiet/clicky preferences. A measurement such as “up to 1.2 meters” changes width without becoming a $1.20 budget. Unsupported or ambiguous language can be entered through structured controls. The optional Gemini path returns only a validated preferences object. Product choice, prices, budget enforcement and geometry stay in application code.
+The default configuration uses rule-based extraction for explicit CAD budgets, centimeter/meter widths, documented palette synonyms and quiet/clicky preferences. A measurement such as “up to 1.2 meters” changes width without becoming a $1.20 budget. Unsupported or ambiguous language can be entered through structured controls. The optional Gemini path, verified by a local live-provider evaluation, returns only a validated preferences object. Product choice, prices, budget enforcement and geometry stay in application code.
 
 Live calls require `ENABLE_LIVE_AI=true`, `GEMINI_FREE_TIER_CONFIRMED=true`, a provider key and a distributed Redis allowance. Only the reviewed `gemini-3.5-flash-lite` model is accepted. The confirmation flag is an operator attestation, not a programmatic billing check. This project requires a dedicated personal Free Tier project with Cloud Billing disabled; a model name or API key cannot prove those settings.
 
 Atomic counters cap model requests at five per minute and fifty per UTC day across instances. Each call has an eight-second timeout, one candidate and at most 512 output tokens. No tools, alternate model, alternate provider or retry is configured. Invalid output, provider errors and exhausted AI allowance fall back to local rules and expose the actual engine. An empty brief never reserves an AI request. The recommendation route's separate origin and rate checks run before catalog loading or interpretation.
 
-The 12 public synthetic fixtures initially produced 8/12 exact rules results and 43/48 matching preference fields. Palette synonyms, metric conversion and the measurement/budget regression fix brought the same set to 12/12 and 48/48, while both runs passed all deterministic constraint checks. This is a small development regression set, not an independent model benchmark. The live evaluation remains pending; its runner requires explicit opt-in, sends at most 12 requests 15 seconds apart and reports all fallbacks as provider failures.
+The 12 public synthetic fixtures initially produced 8/12 exact rules results and 43/48 matching preference fields. Palette synonyms, metric conversion and the measurement/budget regression fix brought the same set to 12/12 and 48/48, while both runs passed all deterministic constraint checks. This is a small development regression set, not an independent model benchmark.
+
+A separate live Gemini run completed on November 15, 2026 at 18:37 UTC with 12/12 provider successes, 12/12 exact preferences, 48/48 fields, 12/12 constraint checks and zero rules fallbacks. Report rows were independently compared with the current fixtures and planner. It exercised the local extraction function against the real provider and fictional catalog, not a deployed endpoint or Shopify checkout. It establishes no broader language accuracy or advantage over the corrected rules baseline. The runner requires explicit opt-in, sends at most 12 requests 15 seconds apart and reports all fallbacks as provider failures.
 
 ## Public API protection
 
@@ -53,7 +57,7 @@ Fixed-window quotas cover global and per-client request counts. Catalog, recomme
 
 Client counters use daily-rotated HMAC identifiers derived from a trusted proxy address. Vercel's trusted header is selected automatically. Other hosts need a header their proxy overwrites; absent or invalid identities share a conservative bucket. Raw addresses are not sent to Redis. Minute counters expire after 120 seconds and daily counters after 48 hours. Denied requests still use Redis, so application quotas are not a cap on every provider billing unit.
 
-These controls supplement the free account settings: Vercel Hobby, Upstash Free with no card, and Gemini Free Tier with no linked billing account. The [deployment runbook](../README.md#free-only-deployment-runbook) requires pausing or waiting under exhaustion rather than upgrading. A personal Upstash $0 Free database is configured locally with no payment method added; authenticated PING and the application's actual limiter EVAL allow path succeeded. Live quota exhaustion has not been exercised. The personal Vercel workspace is signed in and verified as Hobby; the repository connection and deployment remain pending. Gemini setup also remains pending. The Redis checks do not verify a public deployment.
+These controls supplement the required free account settings: Vercel Hobby, Upstash Free with no card, and Gemini Free Tier with no linked billing account. The [deployment runbook](../README.md#free-only-deployment-runbook) requires pausing or waiting under exhaustion rather than upgrading. A personal Upstash $0 Free database is configured with no payment method added; authenticated PING and the application's actual limiter EVAL allow path succeeded. Live quota exhaustion has not been exercised. The personal Vercel Hobby project is deployed with production-only server configuration, and its public readiness/catalog/planner checks passed. Separately from the live evaluation, the personal Gemini project's AI Studio screen was checked: Free Tier, with Cloud Billing not enabled.
 
 ## Diagnostics and privacy
 
@@ -88,4 +92,6 @@ Only a configured public production origin can be indexed. Robots rules exclude 
 - Playwright starts a local server with demo data and uses the real local recommendation endpoint. It does not submit a hosted Shopify order.
 - Separate live checks loaded all 18 Shopify products, created a cart and completed hosted checkout through Shopify's Test Payment Gateway. A successful test payment reached order confirmation, and a declined test payment displayed an error. These checks did not charge a real payment method or fulfill merchandise.
 
-The latest recorded full backend run passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. No latency, conversion, revenue, live model-quality or cost-saving claims are made. The Vercel repository connection, public deployment, Gemini setup and live AI verification remain pending release steps.
+The latest recorded full backend run passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests with one engine-specific pixel check intentionally skipped, and its production build succeeded. Four focused Chromium/WebKit checks also passed for subsequent frontend fixes, which have not yet been published. `pnpm audit --prod` reported no known vulnerabilities.
+
+The public smoke passed against deployment `a0f3977` using exactly four requests: homepage/production headers, health, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage also loaded in a browser. The checkout flag was enabled, but that smoke created no cart, order or model request. Deployed Gemini and the checkout-return flow remain unverified. Live AI evidence is limited to the 12-case local evaluation above; no broader accuracy, latency, conversion, revenue or cost-saving claims are made.

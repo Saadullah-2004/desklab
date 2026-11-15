@@ -4,6 +4,8 @@ An interactive workspace builder and headless Shopify storefront. Describe your 
 
 **Next.js · TypeScript · React Three Fiber · Shopify Storefront API · Playwright**
 
+**[Open the live demo](https://desklab-saadullah-2004.vercel.app)** · Deployed on Vercel Hobby. Public homepage, readiness, live catalog and planner checks have passed.
+
 DeskLab is a portfolio demonstration by Saad Shahzad. Its 18 products are fictional, test orders do not represent stocked goods, and there is no physical fulfillment.
 
 [Architecture and tradeoffs](docs/ARCHITECTURE.md) · [Portfolio walkthrough and resume bullets](docs/PORTFOLIO.md)
@@ -50,11 +52,14 @@ Verification snapshot, November 15, 2026:
 | Live Shopify cart    | Cart creation returned a Shopify hosted checkout URL                                                                                                |
 | Hosted test checkout | Completed a test order through Shopify's Test Payment Gateway; also verified a declined-payment error                                               |
 | Brief evaluation     | Offline rules: 12/12 exact preferences, 48/48 fields and 12/12 constraint checks on the public synthetic regression set                             |
-| Live AI              | Not yet verified; Gemini free-project setup and live evaluation are pending                                                                         |
+| Live AI              | Local live Gemini evaluation: 12/12 provider successes, 12/12 exact preferences, 48/48 fields, 12/12 constraints and zero fallbacks                 |
+| Gemini account       | Personal project verified in AI Studio as Free Tier with Cloud Billing not enabled                                                                  |
 | Shared Redis         | Personal Upstash $0 Free database created without a payment method; authenticated PING and the application's live limiter EVAL allow path succeeded |
-| Public hosting       | Personal Vercel workspace verified as Hobby and signed in; repository connection and deployment remain pending                                      |
+| Public hosting       | Deployed to Vercel Hobby at the live link above; anonymous homepage loads correctly                                                                 |
+| Deployed smoke       | Four requests passed: homepage/production headers, health readiness, 18 live Shopify products and a feasible empty-brief rules recommendation       |
+| Deployed AI/return   | Live Gemini on the deployed endpoint and the checkout-return flow remain pending verification                                                       |
 
-The automated service tests use Shopify, Redis and Gemini test doubles. The browser suite runs the real local recommendation route against demo fixtures, without live commerce credentials. Separate live integration checks loaded the catalog, created a cart, displayed a declined-payment error and confirmed a completed test checkout. Admin order inspection and a post-order inventory decrement were not verified. No real charge or physical fulfillment occurred. CI checks code; it does not deploy the app or place orders. The 12-case rules evaluation is a regression check, not evidence of general language understanding or live model quality.
+The automated service tests use Shopify, Redis and Gemini test doubles. The browser suite runs the real local recommendation route against demo fixtures, without live commerce credentials. Separate live integration checks loaded the catalog, created a cart, displayed a declined-payment error and confirmed a completed test checkout. Admin order inspection and a post-order inventory decrement were not verified. The public smoke passed against deployment `a0f3977`; it observed the checkout flag enabled but created no cart, order or model request. Follow-up frontend fixes passed four focused Chromium/WebKit checks locally and still require publication and a fresh deployed check. No real charge or physical fulfillment occurred. CI checks code; it does not deploy the app or place orders. The 12-case rules evaluation is a regression check, not evidence of general language understanding or live model quality.
 
 ## Stack and data flow
 
@@ -86,7 +91,7 @@ flowchart LR
     Cart --> Checkout[Shopify hosted test checkout]
 ```
 
-The current demo interprets briefs with rules. The optional AI path can interpret preferences; it never supplies product IDs, prices or purchase actions. The planner selects catalog entries, and checkout resolves IDs against a fresh Shopify catalog. Client-supplied prices, unknown products, duplicate cart lines and invalid quantities are rejected.
+Without live AI configuration, the demo interprets briefs with rules. The live AI path has been verified locally and interprets preferences only; it never supplies product IDs, prices or purchase actions. The planner selects catalog entries, and checkout resolves IDs against a fresh Shopify catalog. Client-supplied prices, unknown products, duplicate cart lines and invalid quantities are rejected.
 
 ## Run locally
 
@@ -167,7 +172,7 @@ The storefront runtime does not use the Admin token. Keep it out of deployment e
 
 ## Brief interpretation and evaluation
 
-The working demo currently uses rules. The optional Gemini integration has mocked failure-path coverage but has not been verified against a live provider. Rules recognize explicit CAD budgets, centimeters/meters, the documented palette keywords and quiet/clicky preferences. Structured controls remain available for unsupported or ambiguous language.
+The default configuration uses rules. The optional Gemini integration has mocked failure-path coverage and a completed local live-provider evaluation. Rules recognize explicit CAD budgets, centimeters/meters, the documented palette keywords and quiet/clicky preferences. Structured controls remain available for unsupported or ambiguous language.
 
 Live AI requires all the following server configuration:
 
@@ -191,6 +196,8 @@ pnpm eval:ai
 ```
 
 The public fixtures in `scripts/ai-eval-cases.ts` originally scored 8/12 exact preferences and 43/48 fields. Adding the documented palette synonyms, metric-width conversion and a fix preventing “up to 1.2 meters” from becoming a $1.20 budget raised the same regression set to **12/12 exact, 48/48 fields**. Both runs passed 12/12 catalog, price, budget and fit checks. This small development set is not an independent benchmark or a live Gemini evaluation.
+
+A separate live run completed on **November 15, 2026 at 18:37 UTC** using `gemini-3.5-flash-lite`: **12/12 Gemini successes, 12/12 exact preference objects, 48/48 fields and 12/12 constraint checks, with zero rules fallbacks**. Every report row was checked against the public fixtures and current planner. The run used the fictional demo catalog and did not exercise Shopify checkout or a deployed endpoint. These 12 synthetic development cases verify this bounded integration path; they do not establish general language accuracy, model superiority over the corrected rules baseline, throughput or production reliability. The local report is `artifacts/ai-eval-live-2026-11-15T18-37-20.188Z.json`.
 
 After verifying free-project billing and configuring the shared allowance, explicitly opt into a live evaluation:
 
@@ -257,7 +264,7 @@ PLAYWRIGHT_CHANNEL=chromium pnpm test:e2e
 
 GitHub Actions runs a frozen-lockfile install, code checks, a production build and the Chromium/WebKit browser suite on pushes and pull requests. Failure traces and screenshots are uploaded as temporary CI artifacts. Before calling a connected deployment verified, also complete a test order and inspect it in Shopify admin. Automated tests do not verify payment or shipping configuration.
 
-After connecting Shopify, `pnpm smoke:public --url=https://YOUR-PROJECT.vercel.app` checks the homepage, production headers, readiness, all 18 live catalog entries and an empty-brief recommendation. It makes no Gemini calls or carts, and a demo-only catalog intentionally fails this connected-store check. The separate public-smoke workflow can run manually and has a scheduled check that remains skipped until the repository's `DESKLAB_PUBLIC_URL` variable is configured. No public URL is configured yet, so active monitoring has not been established.
+`pnpm smoke:public --url=https://desklab-saadullah-2004.vercel.app` checks the homepage, production headers, readiness, all 18 live catalog entries and an empty-brief recommendation. It passed against the first production deployment without Gemini calls or carts; a demo-only catalog intentionally fails this connected-store check. The separate public-smoke workflow can run manually and has a scheduled check that remains skipped until the repository's `DESKLAB_PUBLIC_URL` variable is configured. That repository variable has not been configured, so active scheduled monitoring has not been established.
 
 To refresh the documentation screenshots from the isolated demo browser tests:
 
@@ -269,7 +276,7 @@ This writes the homepage desktop/mobile views and workspace builder to `docs/scr
 
 ## Free-only deployment runbook
 
-No public deployment exists yet. The signed-in personal Vercel workspace is visibly on Hobby; the GitHub connection scoped to this repository and deployment remain pending. A personal Upstash $0 Free database has been created without adding a payment method, with credentials stored privately in local configuration. Authenticated PING and the application's actual limiter EVAL allow path succeeded. This verifies live Redis connectivity and one allowed reservation, not deployed application readiness or exhaustion behavior. Gemini setup/live evaluation remain pending. Use personal accounts and the free plans below; do not add a payment method, enable paid trials/add-ons or buy a domain for this portfolio demo.
+The personal Vercel Hobby project is [deployed to production](https://desklab-saadullah-2004.vercel.app) with server configuration scoped to production. Its anonymous homepage and four-request public smoke passed, including live Shopify catalog and rule-based planning. Deployed Gemini and checkout-return checks remain pending. A personal Upstash $0 Free database has been created without adding a payment method; authenticated PING and the application's limiter EVAL allow path succeeded. A separate AI Studio console check confirmed the personal Gemini project is Free Tier, with Cloud Billing not enabled; its key was used for the completed local evaluation above. Live quota-exhaustion behavior has not been exercised. Use personal accounts and the free plans below; do not add a payment method, enable paid trials/add-ons or buy a domain for this portfolio demo.
 
 1. **Hosting:** select Vercel **Hobby**, verify the account has no paid subscription/payment method, and use the included `.vercel.app` address. Keep this as a personal noncommercial demo. If Hobby limits are exhausted, wait for service to resume or pause the deployment instead of upgrading. [Hobby plan](https://vercel.com/docs/plans/hobby).
 2. **Request protection:** create or select an Upstash **Free** database in an account with no payment method. Verify it is not Pay as You Go or a paid fixed plan. Adding a payment method automatically upgrades all free resources in that Upstash account, and an account with a payment method cannot keep or create Free databases. Do not add a card or paid add-ons. [Upstash upgrade rules](https://upstash.com/docs/redis/howto/upgrade-database).
