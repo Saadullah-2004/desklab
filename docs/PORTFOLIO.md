@@ -64,7 +64,7 @@ Keep the demo's actual engine visible: `gemini` for successful live extraction a
 
 ## Evidence and limits
 
-As of November 15, 2026, the full backend suite passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests, with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. Separate integration checks loaded the live 18-product Shopify catalog and completed an earlier local test checkout.
+As of November 15, 2026, the full backend suite passed 105/105 tests. The production Chromium/WebKit suite passed 33 tests, with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. Separate integration checks loaded the live 18-product Shopify catalog and completed an earlier local test checkout.
 
 Shopify admin inspection confirmed that earlier order for one Arc Desk was a paid, unfulfilled Test order at CAD $279 with free Standard shipping. Its timeline records declined and successful test payments. Quantity tracking is enabled, and inventory shows 19 available plus one committed unit versus 20 seeded units. This verifies an inventory reservation for the earlier order, without physical fulfillment or a real charge. It does not establish completion of the newer public five-item checkout.
 
@@ -73,6 +73,8 @@ The offline rules evaluation passed 12/12 exact preference checks, 48/48 field c
 A separate local live run completed November 15, 2026 at 18:37 UTC using `gemini-3.5-flash-lite`. It returned 12/12 Gemini successes, 12/12 exact preferences, 48/48 fields and 12/12 constraint checks, with no rules fallback. Each saved row was compared with the fixtures and current planner. The fictional catalog was used, and no Shopify checkout or deployed endpoint was exercised by that evaluation.
 
 GitHub CI and the Vercel production deployment succeeded at `aa861a7`, with server configuration scoped to production. Four public smoke requests passed: homepage and production headers, health readiness, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage loads in a browser. That smoke created no cart, order or model call. Four focused Chromium/WebKit checks also passed for subsequent frontend fixes.
+
+The daily public-smoke schedule is enabled through the configured canonical URL in `DESKLAB_PUBLIC_URL`. Its first manual workflow run passed on `ee1ce24`. This establishes a working manual check and enabled schedule; a scheduled-run result has not yet been observed.
 
 Later public browser checks verified a warm, quiet CAD $650 / 120 cm brief: the UI reported AI interpretation, preserved the width and returned five products at CAD $540. A shared link restored the same preferences and five products. Public cart creation then reached hosted Shopify checkout with the correct five lines, CAD $540 product subtotal and test-gateway instructions. The public test payment submission and post-payment return remain pending; this is not a completed public order.
 
