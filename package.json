@@ -1,0 +1,44 @@
+{
+  "name": "desklab",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts src/lib/*.test.ts",
+    "test:e2e": "playwright test",
+    "seed:plan": "node --conditions=react-server --import tsx scripts/shopify-seed.ts --plan",
+    "seed:csv": "node --import tsx scripts/shopify-export-csv.ts"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.8.2",
+    "@shopify/storefront-api-client": "^2.0.1",
+    "lucide-react": "^1.73.0",
+    "next": "16.4.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.187.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.5",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
