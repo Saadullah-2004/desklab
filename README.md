@@ -4,7 +4,7 @@ An interactive workspace builder and headless Shopify storefront. Describe your 
 
 **Next.js · TypeScript · React Three Fiber · Shopify Storefront API · Playwright**
 
-**[Open the live demo](https://desklab-saadullah-2004.vercel.app)** · Deployed on Vercel Hobby. Public homepage, readiness, live catalog and planner checks have passed.
+**[Open the live demo](https://desklab-saadullah-2004.vercel.app)** · Deployed on Vercel Hobby. Live AI, configuration sharing and the handoff to Shopify test checkout have been exercised publicly.
 
 DeskLab is a portfolio demonstration by Saad Shahzad. Its 18 products are fictional, test orders do not represent stocked goods, and there is no physical fulfillment.
 
@@ -42,24 +42,32 @@ All prices are CAD. Budgets cover products before tax and shipping. The fit mode
 
 Verification snapshot, November 15, 2026:
 
-| Area                 | Evidence                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain and backend   | Full suite: 105/105 tests passed                                                                                                                    |
-| Browser flows        | Production Chromium/WebKit suite: 31 passed; one engine-specific pixel check intentionally skipped                                                  |
-| Production build     | Succeeded as part of the browser suite                                                                                                              |
-| Dependency audit     | `pnpm audit --prod` reported no known vulnerabilities                                                                                               |
-| Live Shopify catalog | All 18 original products loaded through the Storefront API                                                                                          |
-| Live Shopify cart    | Cart creation returned a Shopify hosted checkout URL                                                                                                |
-| Hosted test checkout | Completed a test order through Shopify's Test Payment Gateway; also verified a declined-payment error                                               |
-| Brief evaluation     | Offline rules: 12/12 exact preferences, 48/48 fields and 12/12 constraint checks on the public synthetic regression set                             |
-| Live AI              | Local live Gemini evaluation: 12/12 provider successes, 12/12 exact preferences, 48/48 fields, 12/12 constraints and zero fallbacks                 |
-| Gemini account       | Personal project verified in AI Studio as Free Tier with Cloud Billing not enabled                                                                  |
-| Shared Redis         | Personal Upstash $0 Free database created without a payment method; authenticated PING and the application's live limiter EVAL allow path succeeded |
-| Public hosting       | Deployed to Vercel Hobby at the live link above; anonymous homepage loads correctly                                                                 |
-| Deployed smoke       | Four requests passed: homepage/production headers, health readiness, 18 live Shopify products and a feasible empty-brief rules recommendation       |
-| Deployed AI/return   | Live Gemini on the deployed endpoint and the checkout-return flow remain pending verification                                                       |
+| Area                 | Evidence                                                                                                                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain and backend   | Full suite: 105/105 tests passed                                                                                                                                                              |
+| Browser flows        | Production Chromium/WebKit suite: 31 passed; one engine-specific pixel check intentionally skipped                                                                                            |
+| Production build     | Succeeded as part of the browser suite                                                                                                                                                        |
+| Dependency audit     | `pnpm audit --prod` reported no known vulnerabilities                                                                                                                                         |
+| Live Shopify catalog | All 18 original products loaded through the Storefront API                                                                                                                                    |
+| Live Shopify cart    | Cart creation returned a Shopify hosted checkout URL                                                                                                                                          |
+| Hosted test checkout | Earlier local single-desk order verified in admin as a paid, unfulfilled Test order; timeline records declined and successful test payments                                                   |
+| Order/inventory      | Earlier Arc Desk test order: CAD $279, free Standard shipping; tracked inventory shows 19 available and 1 committed versus 20 seeded                                                          |
+| Brief evaluation     | Offline rules: 12/12 exact preferences, 48/48 fields and 12/12 constraint checks on the public synthetic regression set                                                                       |
+| Live AI              | Local live Gemini evaluation: 12/12 provider successes, 12/12 exact preferences, 48/48 fields, 12/12 constraints and zero fallbacks                                                           |
+| Gemini account       | Personal project verified in AI Studio as Free Tier with Cloud Billing not enabled                                                                                                            |
+| Shared Redis         | Personal Upstash $0 Free database created without a payment method; authenticated PING and the application's live limiter EVAL allow path succeeded                                           |
+| Public hosting       | Deployed to Vercel Hobby at the live link above; anonymous homepage loads correctly                                                                                                           |
+| Deployed smoke       | Four requests passed: homepage/production headers, health readiness, 18 live Shopify products and a feasible empty-brief rules recommendation                                                 |
+| Deployed AI          | A warm, quiet CAD $650 / 120 cm brief showed the AI interpretation label and returned five products at CAD $540                                                                               |
+| Deployed sharing     | Reopening the shared link restored the same preferences and five products                                                                                                                     |
+| Deployed checkout    | Public cart creation reached Shopify checkout with the correct five lines, CAD $540 product subtotal and test-gateway instructions; payment submission and post-payment return remain pending |
+| Payment providers    | PayPal Express was deactivated; a freshly opened hosted checkout showed Test Payment Gateway instructions and no PayPal option                                                                |
+| Shopify theme/plan   | Adapted Online Store theme uploaded and published; storefront password remains enabled. Current store plan verified as Staff at $0                                                            |
+| Verified revision    | GitHub CI and Vercel production deployment succeeded for `aa861a7`                                                                                                                            |
 
-The automated service tests use Shopify, Redis and Gemini test doubles. The browser suite runs the real local recommendation route against demo fixtures, without live commerce credentials. Separate live integration checks loaded the catalog, created a cart, displayed a declined-payment error and confirmed a completed test checkout. Admin order inspection and a post-order inventory decrement were not verified. The public smoke passed against deployment `a0f3977`; it observed the checkout flag enabled but created no cart, order or model request. Follow-up frontend fixes passed four focused Chromium/WebKit checks locally and still require publication and a fresh deployed check. No real charge or physical fulfillment occurred. CI checks code; it does not deploy the app or place orders. The 12-case rules evaluation is a regression check, not evidence of general language understanding or live model quality.
+The automated service tests use Shopify, Redis and Gemini test doubles. The browser suite runs the real local recommendation route against demo fixtures, without live commerce credentials. The earlier local test checkout has now been verified in Shopify admin, including its test-payment timeline and the one-unit reduction in available inventory with one unit committed. It remains unfulfilled. The newer public-site flow has reached hosted checkout with the correct five-item cart, but its test payment and post-payment return have not yet completed. These are separate orders and verification paths.
+
+The original four-request public smoke created no cart, order or model request; later browser checks separately exercised one live AI brief, sharing and cart creation. Follow-up frontend fixes passed four focused Chromium/WebKit checks, and CI plus Vercel deployment succeeded at `aa861a7`. No real charge or physical fulfillment occurred. CI itself does not place orders. The small evaluation fixture set is not evidence of general language accuracy or an advantage over the corrected rules baseline.
 
 ## Stack and data flow
 
@@ -91,7 +99,7 @@ flowchart LR
     Cart --> Checkout[Shopify hosted test checkout]
 ```
 
-Without live AI configuration, the demo interprets briefs with rules. The live AI path has been verified locally and interprets preferences only; it never supplies product IDs, prices or purchase actions. The planner selects catalog entries, and checkout resolves IDs against a fresh Shopify catalog. Client-supplied prices, unknown products, duplicate cart lines and invalid quantities are rejected.
+Without live AI configuration, the demo interprets briefs with rules. The live AI path has been verified locally and with one public-site brief. It interprets preferences only; it never supplies product IDs, prices or purchase actions. The planner selects catalog entries, and checkout resolves IDs against a fresh Shopify catalog. Client-supplied prices, unknown products, duplicate cart lines and invalid quantities are rejected.
 
 ## Run locally
 
@@ -123,10 +131,12 @@ Open `http://127.0.0.1:3000` for that run. Public production requires the shared
 3. Enable product access and `unauthenticated_read_product_inventory`, needed for `quantityAvailable`.
 4. Set `SHOPIFY_STORE_DOMAIN` to the bare `your-store.myshopify.com` domain, without a URL scheme or path. Set `SHOPIFY_STOREFRONT_ACCESS_TOKEN` in `.env.local`.
 5. Seed products as described below, or create products with the exact handles in `src/lib/catalog.ts`. Publish them to the Headless publication. Mapping expects exactly one variant per product; extra variants require an explicit `shopifyVariantId` mapping.
-6. Configure shipping from the inventory location and activate Shopify's Test gateway or Shopify Payments test mode. Verify the payment configuration in Shopify admin before setting `SHOPIFY_TEST_CHECKOUT_ENABLED=true`.
+6. Configure shipping from the inventory location. In Shopify admin's Payments settings, deactivate all live/additional providers, especially default PayPal Express, then activate the Test gateway or Shopify Payments test mode. Open a fresh checkout and verify only the intended sandboxed payment methods are offered before setting `SHOPIFY_TEST_CHECKOUT_ENABLED=true`.
 7. Restart the server and verify `/api/catalog` reports `source: "shopify"` and `checkoutEnabled: true`. Complete a test checkout and check the order, totals and inventory in Shopify admin.
 
-The checkout flag defaults to false. Credentials alone enable catalog access, not checkout. The flag is an explicit operator attestation of test payment settings; the Storefront API does not verify the gateway configuration. Disable the flag before changing payment providers or taking the store out of test mode.
+The checkout flag defaults to false. Credentials alone enable catalog access, not checkout. The flag is an explicit operator attestation of the complete payment configuration; the Storefront API does not verify it. A test card gateway does not establish that other providers are sandboxed. PayPal Express can be added by default, and “setup incomplete” does not mean it is deactivated. Use its dedicated **Deactivate** control, then inspect a fresh checkout. Disable the flag before changing any payment provider. See Shopify's [test-order preparation](https://help.shopify.com/en/manual/checkout-settings/test-orders/processing-test-order) and [PayPal setup/deactivation](https://help.shopify.com/en/manual/payments/paypal/set-up-paypal).
+
+For this store, PayPal Express has now been deactivated with confirmation in admin. A fresh hosted checkout displayed Test Payment Gateway instructions and no PayPal option. This verifies the observed provider choices, not a new successful public order. Public test payment submission and the post-payment return remain pending.
 
 Storefront and Admin GraphQL requests use API version `2026-10`. Keep the version and SDK current together, and rerun integration checks when upgrading.
 
@@ -198,6 +208,8 @@ pnpm eval:ai
 The public fixtures in `scripts/ai-eval-cases.ts` originally scored 8/12 exact preferences and 43/48 fields. Adding the documented palette synonyms, metric-width conversion and a fix preventing “up to 1.2 meters” from becoming a $1.20 budget raised the same regression set to **12/12 exact, 48/48 fields**. Both runs passed 12/12 catalog, price, budget and fit checks. This small development set is not an independent benchmark or a live Gemini evaluation.
 
 A separate live run completed on **November 15, 2026 at 18:37 UTC** using `gemini-3.5-flash-lite`: **12/12 Gemini successes, 12/12 exact preference objects, 48/48 fields and 12/12 constraint checks, with zero rules fallbacks**. Every report row was checked against the public fixtures and current planner. The run used the fictional demo catalog and did not exercise Shopify checkout or a deployed endpoint. These 12 synthetic development cases verify this bounded integration path; they do not establish general language accuracy, model superiority over the corrected rules baseline, throughput or production reliability. The local report is `artifacts/ai-eval-live-2026-11-15T18-37-20.188Z.json`.
+
+Separately, the public builder interpreted a warm, quiet workspace brief with a CAD $650 budget and 120 cm width. The UI reported AI interpretation, preserved 120 cm and returned five products at CAD $540. Reopening its shared link restored the same preferences and five products. This is one deployed-path verification, not a broader model evaluation.
 
 After verifying free-project billing and configuring the shared allowance, explicitly opt into a live evaluation:
 
@@ -276,13 +288,15 @@ This writes the homepage desktop/mobile views and workspace builder to `docs/scr
 
 ## Free-only deployment runbook
 
-The personal Vercel Hobby project is [deployed to production](https://desklab-saadullah-2004.vercel.app) with server configuration scoped to production. Its anonymous homepage and four-request public smoke passed, including live Shopify catalog and rule-based planning. Deployed Gemini and checkout-return checks remain pending. A personal Upstash $0 Free database has been created without adding a payment method; authenticated PING and the application's limiter EVAL allow path succeeded. A separate AI Studio console check confirmed the personal Gemini project is Free Tier, with Cloud Billing not enabled; its key was used for the completed local evaluation above. Live quota-exhaustion behavior has not been exercised. Use personal accounts and the free plans below; do not add a payment method, enable paid trials/add-ons or buy a domain for this portfolio demo.
+The personal Vercel Hobby project is [deployed to production](https://desklab-saadullah-2004.vercel.app) with server configuration scoped to production. CI and the Vercel deployment succeeded at `aa861a7`. The anonymous homepage and four-request public smoke passed; subsequent browser checks verified one deployed AI brief, shared-link restoration and a correct cart handoff to Shopify's test checkout. Public test payment submission and the post-payment return remain pending. A personal Upstash $0 Free database has been created without adding a payment method; authenticated PING and the application's limiter EVAL allow path succeeded. A separate AI Studio console check confirmed the personal Gemini project is Free Tier, with Cloud Billing not enabled. Live quota-exhaustion behavior has not been exercised.
+
+The Shopify account currently shows the Staff plan at $0. The adapted Online Store theme has been uploaded and published, while its storefront password remains enabled; the public portfolio URL above is the Vercel application. Staff-plan eligibility is an account benefit, not an application guarantee. Use the free configurations below; do not add a payment method, enable paid trials/add-ons or buy a domain for this portfolio demo.
 
 1. **Hosting:** select Vercel **Hobby**, verify the account has no paid subscription/payment method, and use the included `.vercel.app` address. Keep this as a personal noncommercial demo. If Hobby limits are exhausted, wait for service to resume or pause the deployment instead of upgrading. [Hobby plan](https://vercel.com/docs/plans/hobby).
 2. **Request protection:** create or select an Upstash **Free** database in an account with no payment method. Verify it is not Pay as You Go or a paid fixed plan. Adding a payment method automatically upgrades all free resources in that Upstash account, and an account with a payment method cannot keep or create Free databases. Do not add a card or paid add-ons. [Upstash upgrade rules](https://upstash.com/docs/redis/howto/upgrade-database).
 3. **Server configuration:** set `APP_ORIGIN` to the exact public HTTPS origin, and configure `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` and a generated `RATE_LIMIT_IP_HASH_SECRET`. Set these before building. Use Node.js 24 and the repository's frozen lockfile. Static export is unsuitable because the API routes require a server.
 4. **First deployment:** leave `ENABLE_LIVE_AI=false`, `GEMINI_FREE_TIER_CONFIRMED=false` and `SHOPIFY_TEST_CHECKOUT_ENABLED=false`. Build and verify all four pages, `/api/health`, catalog/recommendation requests, mobile navigation, sharing and the bag from the deployed origin. Keep all credentials server-side and the Admin token out of hosting environments.
-5. **Test commerce:** connect the dedicated Shopify test store, verify its test payment gateway in admin, then enable the checkout attestation and repeat successful/declined test payments from the deployed site. Inspect the order and inventory separately before claiming those checks passed. Do not upgrade the Shopify plan or enable real payments for this demo.
+5. **Test commerce:** connect the dedicated Shopify test store. Deactivate every live/additional provider, including default PayPal Express, using each provider's dedicated control. A test card gateway does not sandbox the other methods. Verify the intended test gateway in admin and in a fresh checkout before enabling the checkout attestation. Then repeat successful/declined test payments from the deployed site and inspect the order and inventory separately. Do not upgrade the Shopify plan or enable real payments for this demo.
 6. **Optional live AI:** create a dedicated personal Gemini project and verify **Free Tier** in AI Studio, with Cloud Billing disabled and no linked billing account/payment method for that project. Check its actual model quotas. Only then set the AI confirmation/enable flags and run the bounded live evaluation above. If setup requires paid billing, leave live AI disabled and use rules. [Gemini billing](https://aistudio.google.com/docs/billing).
 7. **Record evidence:** update this status table only after observing the deployed result. Record the URL, tested revision, provider account tiers, test outcomes and remaining limits without publishing secrets or customer data.
 

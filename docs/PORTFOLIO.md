@@ -14,10 +14,10 @@ Next.js, TypeScript, React Three Fiber, Shopify Storefront API, Playwright
 
 - Built an interactive workspace configurator with 3D previews, shareable configurations and a persistent shopping bag across an original 18-product catalog.
 - Implemented a deterministic setup planner that validates budget, combined product footprints, inventory and keyboard preferences, with the same checks applied to manual product swaps.
-- Integrated Shopify catalog, cart and hosted checkout with server-side variant, CAD price and stock validation; verified successful and declined payments through Shopify's test gateway.
+- Integrated Shopify catalog, cart and hosted checkout with server-side variant, CAD price and stock validation; verified test payments, admin order state and inventory reservation.
 - Added distributed API quotas, origin validation, bounded requests, privacy-conscious diagnostics and separate gates for live AI and sandbox checkout.
 
-These bullets describe implemented functionality and verified test-mode checkout. Local production browser checks pass, the free Redis connection and one live limiter reservation have been verified, and a 12-case local live Gemini evaluation passed. The Vercel Hobby site is deployed and basic public integration checks passed. Deployed AI and checkout-return verification remain pending. There is no physical fulfillment.
+These bullets describe implemented functionality and earlier verified test-mode checkout. The Vercel Hobby site is deployed, with public checks covering one live AI brief, shared-link restoration and a correct Shopify checkout cart. Submission of the newer public test payment and its post-payment return remain pending. There is no physical fulfillment.
 
 An optional AI-focused bullet:
 
@@ -64,12 +64,20 @@ Keep the demo's actual engine visible: `gemini` for successful live extraction a
 
 ## Evidence and limits
 
-As of November 15, 2026, the full backend suite passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests, with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. Separate integration checks loaded the live 18-product Shopify catalog, created a cart, verified a declined-payment error and reached order confirmation after a successful payment through Shopify's Test Payment Gateway. Admin order inspection and post-order inventory decrement remain unverified. No real charge or physical fulfillment occurred.
+As of November 15, 2026, the full backend suite passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests, with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. Separate integration checks loaded the live 18-product Shopify catalog and completed an earlier local test checkout.
+
+Shopify admin inspection confirmed that earlier order for one Arc Desk was a paid, unfulfilled Test order at CAD $279 with free Standard shipping. Its timeline records declined and successful test payments. Quantity tracking is enabled, and inventory shows 19 available plus one committed unit versus 20 seeded units. This verifies an inventory reservation for the earlier order, without physical fulfillment or a real charge. It does not establish completion of the newer public five-item checkout.
 
 The offline rules evaluation passed 12/12 exact preference checks, 48/48 field checks and 12/12 constraint checks. It made no model requests. The social image was rendered and visually inspected, and metadata tests cover route canonicals, API exclusion and preview noindex behavior.
 
 A separate local live run completed November 15, 2026 at 18:37 UTC using `gemini-3.5-flash-lite`. It returned 12/12 Gemini successes, 12/12 exact preferences, 48/48 fields and 12/12 constraint checks, with no rules fallback. Each saved row was compared with the fixtures and current planner. The fictional catalog was used, and no Shopify checkout or deployed endpoint was exercised by that evaluation.
 
-The personal Vercel Hobby project is deployed with production-only server configuration. Four public smoke requests passed against revision `a0f3977`: homepage and production headers, health readiness, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage loads in a browser. The smoke observed checkout enabled but created no cart, order or model call. Deployed Gemini and checkout-return checks remain pending. Four focused Chromium/WebKit checks passed for subsequent frontend fixes that still need publication and deployed verification.
+GitHub CI and the Vercel production deployment succeeded at `aa861a7`, with server configuration scoped to production. Four public smoke requests passed: homepage and production headers, health readiness, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage loads in a browser. That smoke created no cart, order or model call. Four focused Chromium/WebKit checks also passed for subsequent frontend fixes.
+
+Later public browser checks verified a warm, quiet CAD $650 / 120 cm brief: the UI reported AI interpretation, preserved the width and returned five products at CAD $540. A shared link restored the same preferences and five products. Public cart creation then reached hosted Shopify checkout with the correct five lines, CAD $540 product subtotal and test-gateway instructions. The public test payment submission and post-payment return remain pending; this is not a completed public order.
+
+Payment configuration was checked separately: PayPal Express was deactivated in admin, and a fresh hosted checkout showed Test Payment Gateway instructions with no PayPal option. The runbook now requires checking every additional provider; a test card gateway alone does not make the entire checkout sandboxed. This configuration check did not submit a public payment.
+
+An adapted Shopify Online Store theme has been uploaded and published, with its storefront password still enabled. The public portfolio URL is the Vercel application. Shopify's current account plan was verified as Staff at $0, separate from the project's application-level free-only controls.
 
 A personal Upstash $0 Free database was created without a payment method. Authenticated PING and the application's live limiter EVAL allow path succeeded; exhaustion behavior has not been exercised against the provider. A separate AI Studio console check confirmed the personal Gemini project is Free Tier with Cloud Billing not enabled. No general accuracy, performance, business-impact or cost-saving claims are supported by the small evaluation fixture set. The [README runbook](../README.md#free-only-deployment-runbook) describes remaining checks and the free-only operating constraint.

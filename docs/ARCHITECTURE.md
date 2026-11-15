@@ -2,7 +2,7 @@
 
 DeskLab combines a workspace configurator with a Shopify-backed store. The distinctive behavior is the shared constraint model: generated recommendations and manual product swaps must satisfy the same contract.
 
-[Production demo](https://desklab-saadullah-2004.vercel.app), hosted on Vercel Hobby. Basic deployed integration checks have passed; deployed AI and checkout-return verification remain pending.
+[Production demo](https://desklab-saadullah-2004.vercel.app), hosted on Vercel Hobby. Public checks cover the live catalog, planning, one live AI brief, sharing and the cart handoff to hosted test checkout. The public test payment and post-payment return remain unverified.
 
 ## Ownership of data
 
@@ -35,7 +35,15 @@ Bag edits are local until checkout. The server accepts only catalog IDs and boun
 
 A stock check is not a reservation. Shopify remains authoritative at final checkout. The application does not implement its own payment collection, fulfillment system, customer accounts or order webhook pipeline.
 
-`SHOPIFY_TEST_CHECKOUT_ENABLED` is a separate, default-off gate. It represents an operator's verification of payment test mode. Storefront credentials alone do not establish whether the payment provider is sandboxed.
+`SHOPIFY_TEST_CHECKOUT_ENABLED` is a separate, default-off gate. It represents an operator's verification of the complete payment configuration. Storefront credentials and a test card gateway alone do not establish whether additional providers are sandboxed. The runbook requires deactivating live/additional methods, especially default PayPal Express, and inspecting a fresh hosted checkout. “Setup incomplete” is not proof that PayPal is inactive. Shopify documents [deactivating live providers before test orders](https://help.shopify.com/en/manual/checkout-settings/test-orders/processing-test-order) and the dedicated [PayPal Deactivate control](https://help.shopify.com/en/manual/payments/paypal/set-up-paypal).
+
+The public deployment has created a Shopify cart and displayed the correct five lines, CAD $540 product subtotal and test-gateway instructions in hosted checkout. Payment submission and the post-payment return for this public flow remain pending.
+
+The earlier local checkout's separate order for one Arc Desk has been inspected in Shopify admin: explicitly a Test order, paid and unfulfilled, at CAD $279 with free Standard shipping. Its timeline records a declined test attempt followed by a successful one. With quantity tracking enabled, the product now has 19 available and one committed unit, versus 20 seeded units. This verifies the reduction in available inventory and the reservation for the earlier test order; no physical fulfillment occurred. It does not complete the newer public checkout flow.
+
+The current provider check confirmed PayPal Express deactivation in admin. A freshly opened hosted checkout then showed Test Payment Gateway instructions and no PayPal option. No new successful public order is claimed from this configuration check.
+
+An adapted Shopify Online Store theme has also been uploaded and published. Its storefront password remains enabled, while the Vercel portfolio is public. The current Shopify account plan was verified as Staff at $0; this account benefit is separate from the application's deployment and cost controls.
 
 ## Brief interpretation
 
@@ -48,6 +56,8 @@ Atomic counters cap model requests at five per minute and fifty per UTC day acro
 The 12 public synthetic fixtures initially produced 8/12 exact rules results and 43/48 matching preference fields. Palette synonyms, metric conversion and the measurement/budget regression fix brought the same set to 12/12 and 48/48, while both runs passed all deterministic constraint checks. This is a small development regression set, not an independent model benchmark.
 
 A separate live Gemini run completed on November 15, 2026 at 18:37 UTC with 12/12 provider successes, 12/12 exact preferences, 48/48 fields, 12/12 constraint checks and zero rules fallbacks. Report rows were independently compared with the current fixtures and planner. It exercised the local extraction function against the real provider and fictional catalog, not a deployed endpoint or Shopify checkout. It establishes no broader language accuracy or advantage over the corrected rules baseline. The runner requires explicit opt-in, sends at most 12 requests 15 seconds apart and reports all fallbacks as provider failures.
+
+One additional public-site brief requested warm wood, quiet switches, a CAD $650 budget and 120 cm of space. The UI displayed its AI interpretation label and a five-product setup at CAD $540 with the correct width. Reopening the shared configuration restored the same preferences and five products. This verifies one deployed integration path, not general model performance.
 
 ## Public API protection
 
@@ -90,8 +100,8 @@ Only a configured public production origin can be indexed. Robots rules exclude 
 - Domain tests cover fit, budget, stock, deterministic selection, manual swaps and versioned configuration validation.
 - Backend tests replace upstream providers and exercise prices, quantities, errors, test-checkout gating, distributed rate limits, origin handling, diagnostics and AI fallback behavior.
 - Playwright starts a local server with demo data and uses the real local recommendation endpoint. It does not submit a hosted Shopify order.
-- Separate live checks loaded all 18 Shopify products, created a cart and completed hosted checkout through Shopify's Test Payment Gateway. A successful test payment reached order confirmation, and a declined test payment displayed an error. These checks did not charge a real payment method or fulfill merchandise.
+- Separate live checks loaded all 18 Shopify products, created a cart and completed hosted checkout through Shopify's Test Payment Gateway. The earlier local test order was also inspected in admin, confirming its declined/successful test-payment timeline, paid/unfulfilled state and one-unit inventory reservation. These checks did not charge a real payment method or fulfill merchandise.
 
-The latest recorded full backend run passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests with one engine-specific pixel check intentionally skipped, and its production build succeeded. Four focused Chromium/WebKit checks also passed for subsequent frontend fixes, which have not yet been published. `pnpm audit --prod` reported no known vulnerabilities.
+The recorded full backend run passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests with one engine-specific pixel check intentionally skipped, and its production build succeeded. Four focused Chromium/WebKit checks also passed for subsequent frontend fixes. GitHub CI and the Vercel production deployment succeeded at `aa861a7`. `pnpm audit --prod` reported no known vulnerabilities.
 
-The public smoke passed against deployment `a0f3977` using exactly four requests: homepage/production headers, health, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage also loaded in a browser. The checkout flag was enabled, but that smoke created no cart, order or model request. Deployed Gemini and the checkout-return flow remain unverified. Live AI evidence is limited to the 12-case local evaluation above; no broader accuracy, latency, conversion, revenue or cost-saving claims are made.
+The original public smoke passed using exactly four requests: homepage/production headers, health, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage also loaded in a browser. The checkout flag was enabled, but that smoke created no cart, order or model request. Later browser checks separately verified the public AI brief, shared configuration and hosted-cart handoff described above. The public payment and post-payment return remain pending. No broader accuracy, latency, conversion, revenue or cost-saving claims are made.
