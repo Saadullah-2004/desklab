@@ -37,9 +37,31 @@ A stock check is not a reservation. Shopify remains authoritative at final check
 
 ## Brief interpretation
 
-The released demo uses transparent rule-based extraction for budgets, widths, styles and quiet preferences. The optional Gemini path produces only a validated preferences object. Product choice, prices, budget enforcement and geometry stay in application code.
+The current local demo uses rule-based extraction for explicit CAD budgets, centimeter/meter widths, documented palette synonyms and quiet/clicky preferences. A measurement such as “up to 1.2 meters” changes width without becoming a $1.20 budget. Unsupported or ambiguous language can be entered through structured controls. The optional Gemini path returns only a validated preferences object. Product choice, prices, budget enforcement and geometry stay in application code.
 
-Live calls require explicit enablement, a provider key and a distributed Redis allowance. Atomic counters cap use at five requests per minute and fifty per UTC day across instances. Timeouts, invalid model output and exhausted allowance fall back to rules without paid retries. These controls have automated coverage; live model quality has not been measured.
+Live calls require `ENABLE_LIVE_AI=true`, `GEMINI_FREE_TIER_CONFIRMED=true`, a provider key and a distributed Redis allowance. Only the reviewed `gemini-3.5-flash-lite` model is accepted. The confirmation flag is an operator attestation, not a programmatic billing check. This project requires a dedicated personal Free Tier project with Cloud Billing disabled; a model name or API key cannot prove those settings.
+
+Atomic counters cap model requests at five per minute and fifty per UTC day across instances. Each call has an eight-second timeout, one candidate and at most 512 output tokens. No tools, alternate model, alternate provider or retry is configured. Invalid output, provider errors and exhausted AI allowance fall back to local rules and expose the actual engine. An empty brief never reserves an AI request. The recommendation route's separate origin and rate checks run before catalog loading or interpretation.
+
+The 12 public synthetic fixtures initially produced 8/12 exact rules results and 43/48 matching preference fields. Palette synonyms, metric conversion and the measurement/budget regression fix brought the same set to 12/12 and 48/48, while both runs passed all deterministic constraint checks. This is a small development regression set, not an independent model benchmark. The live evaluation remains pending; its runner requires explicit opt-in, sends at most 12 requests 15 seconds apart and reports all fallbacks as provider failures.
+
+## Public API protection
+
+Public production requires a valid HTTPS `APP_ORIGIN` and a working shared Upstash Redis limiter. Missing or partial configuration fails closed. Local development can use a bounded process-memory limiter; an explicit memory setting is permitted only for loopback testing outside Vercel. The public deployment cannot substitute local counters when Redis is unavailable.
+
+Fixed-window quotas cover global and per-client request counts. Catalog, recommendation and checkout global daily caps are 800, 150 and 50 respectively. Their per-client minute caps are 60, 12 and 5; global minute caps are 300, 60 and 20. Exceeded limits return 429 plus `Retry-After`, while unavailable protection returns 503. POST bodies are bounded at 8 KiB and briefs at 1,000 characters. Browser origins are checked against explicit configuration rather than forwarded-host input.
+
+Client counters use daily-rotated HMAC identifiers derived from a trusted proxy address. Vercel's trusted header is selected automatically. Other hosts need a header their proxy overwrites; absent or invalid identities share a conservative bucket. Raw addresses are not sent to Redis. Minute counters expire after 120 seconds and daily counters after 48 hours. Denied requests still use Redis, so application quotas are not a cap on every provider billing unit.
+
+These controls supplement the free account settings: Vercel Hobby, Upstash Free with no card, and Gemini Free Tier with no linked billing account. The [deployment runbook](../README.md#free-only-deployment-runbook) requires pausing or waiting under exhaustion rather than upgrading. A personal Upstash $0 Free database is configured locally with no payment method added; authenticated PING and the application's actual limiter EVAL allow path succeeded. Live quota exhaustion has not been exercised. The personal Vercel workspace is signed in and verified as Hobby; the repository connection and deployment remain pending. Gemini setup also remains pending. The Redis checks do not verify a public deployment.
+
+## Diagnostics and privacy
+
+Production application logs contain a fixed route name, HTTP status and duration only. They exclude request bodies, briefs, responses, customer identifiers, cart tokens, raw IPs and credentials. Platform access logs have their own retention behavior. Shared limiter records contain counters and expiring HMAC identifiers.
+
+`GET /api/health` returns only `ok` or `unavailable`. It checks origin configuration and Redis reachability using a PING cached for 30 seconds per instance. It does not load Shopify, spend AI allowance or create carts, and does not certify payment configuration, model availability or billing tier. The separate public smoke script checks the catalog and an empty-brief recommendation without model calls or cart creation. Its scheduled workflow remains inactive until a public URL is configured.
+
+The UI discloses that live interpretation sends the brief and selected preferences to Google, whose free-tier terms permit use to improve products. Leaving the brief empty avoids that transfer. No free-text brief is included in shared configurations. Response headers restrict framing, content sources, MIME sniffing and referrers. The CSP retains inline bootstrap scripts for Next's static pages, so it is not a nonce-based policy.
 
 ## Sharing and persistence
 
@@ -53,11 +75,17 @@ The workspace uses React Three Fiber and Three.js. Pointer interaction and keybo
 
 The browser suite checks rendered canvas changes after rotation and separately forces WebGL initialization failure. It also exercises mobile navigation, dialog dismissal/focus, cart persistence, impossible budgets and shared configurations. These are focused checks, not a claim of complete accessibility certification or universal browser compatibility.
 
+## Discovery and social sharing
+
+The homepage, collection, builder and About page each declare their own title, description and canonical URL through a shared metadata helper. An original code-generated 1200×630 Open Graph image uses the storefront palette and labels the project as a portfolio demo. No fictional product offers, ratings or reviews are published as structured data.
+
+Only a configured public production origin can be indexed. Robots rules exclude API routes, and the sitemap lists the four public pages. Vercel previews, development, loopback and invalid/missing origins are noindex and publish no sitemap entries. Metadata is built from `APP_ORIGIN`, using the same origin parser as the server boundary; changing it requires a rebuild.
+
 ## Test and integration boundaries
 
 - Domain tests cover fit, budget, stock, deterministic selection, manual swaps and versioned configuration validation.
-- Backend tests replace upstream providers and exercise prices, quantities, errors, test-checkout gating and AI fallback behavior.
+- Backend tests replace upstream providers and exercise prices, quantities, errors, test-checkout gating, distributed rate limits, origin handling, diagnostics and AI fallback behavior.
 - Playwright starts a local server with demo data and uses the real local recommendation endpoint. It does not submit a hosted Shopify order.
 - Separate live checks loaded all 18 Shopify products, created a cart and completed hosted checkout through Shopify's Test Payment Gateway. A successful test payment reached order confirmation, and a declined test payment displayed an error. These checks did not charge a real payment method or fulfill merchandise.
 
-No latency, conversion, revenue, model-quality or cost-saving claims are made. Public hosting and live AI verification remain separate release steps.
+The latest recorded full backend run passed 105/105 tests. The production Chromium/WebKit suite passed 31 tests with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. No latency, conversion, revenue, live model-quality or cost-saving claims are made. The Vercel repository connection, public deployment, Gemini setup and live AI verification remain pending release steps.

@@ -177,6 +177,40 @@ test('budget parsing accepts sentence punctuation without truncating malformed a
   }
 });
 
+test('brief palette synonyms match the documented preference vocabulary', () => {
+  for (const brief of ['natural palette', 'cozy wood'])
+    assert.equal(parseBrief(brief, {...warm, style: 'minimal'}).style, 'warm');
+  for (const brief of ['simple monochrome', 'minimalist'])
+    assert.equal(parseBrief(brief, warm).style, 'minimal');
+  for (const brief of ['creative colourful', 'colorful workspace'])
+    assert.equal(parseBrief(brief, warm).style, 'studio');
+});
+
+test('metric desk widths convert to centimeters without becoming a budget', () => {
+  for (const brief of [
+    'up to 1.2 meters wide',
+    'under 1.2 metres',
+    'below 1.2m',
+    'up to 120 cm',
+  ])
+    assert.deepEqual(
+      parseBrief(brief, {...warm, deskWidthCm: 160}),
+      warm,
+      brief,
+    );
+  assert.deepEqual(parseBrief('Under 1.12m, budget 750', warm), {
+    ...warm,
+    deskWidthCm: 112,
+    budgetCents: 75000,
+  });
+  for (const brief of ['1.2.3m', '-1.2m', '120cm2', '120cmwide'])
+    assert.equal(parseBrief(brief, warm).deskWidthCm, warm.deskWidthCm, brief);
+  assert.equal(
+    parseBrief('Less than 48 inches wide', warm).budgetCents,
+    warm.budgetCents,
+  );
+});
+
 test('configuration round-trips IDs and quantities without storing prices', () => {
   const lines = [
     {productId: products[0].id, quantity: 1},

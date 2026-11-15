@@ -1,5 +1,8 @@
 import DeskLab from '@/components/desklab';
-export const metadata = {title: 'Build your workspace | DeskLab'};
+import {pageMetadata} from '../_metadata';
+
+export const metadata = pageMetadata('/builder');
+
 export default function Page() {
   return <DeskLab page="builder" />;
 }

@@ -276,6 +276,10 @@ export function parseBrief(brief: string, defaults: Preferences): Preferences {
   // A sentence-ending period is punctuation; a separator followed by another
   // digit is still part of the amount and must not permit a partial match.
   const amountEnd = '(?!\\d|[.,]\\d)';
+  const metricUnit = '(?:cm|centimet(?:er|re)s?|m|met(?:er|re)s?)';
+  // "Up to 1.2 meters" describes space, not a $1.20 budget. Keep an
+  // unlabelled amount separate from explicit physical measurements.
+  const notMeasurement = `(?!\\s*(?:${metricUnit}|mm|millimet(?:er|re)s?|in|inches|ft|feet)\\b)`;
   const money =
     text.match(new RegExp(`(?:cad\\s*)?\\$\\s*${amount}${amountEnd}`)) ??
     text.match(
@@ -283,17 +287,25 @@ export function parseBrief(brief: string, defaults: Preferences): Preferences {
     ) ??
     text.match(
       new RegExp(
-        `(?:budget(?:\\s+of)?|under|below|less than|up to)\\s*${amount}${amountEnd}`,
+        `(?:budget(?:\\s+of)?|under|below|less than|up to)\\s*${amount}${amountEnd}${notMeasurement}`,
       ),
     );
-  const width = text.match(/\b(\d+(?:\.\d+)?)\s*(?:cm|centimet(?:er|re)s?)\b/);
-  const widthCm = width ? Number(width[1]) : undefined;
+  const width = text.match(
+    new RegExp(`(?<![\\w.,-])(\\d+(?:\\.\\d+)?)\\s*(${metricUnit})\\b`),
+  );
+  const widthCm = width
+    ? Number(`${width[1]}${width[2].startsWith('c') ? '' : 'e2'}`)
+    : undefined;
   let style = defaults.style;
-  if (/\b(?:warm|oak|walnut|wood|wooden|cozy|cosy)\b/.test(text))
+  if (/\b(?:warm|oak|walnut|wood|wooden|cozy|cosy|natural)\b/.test(text))
     style = 'warm';
-  else if (/\b(?:studio|carbon|graphite|industrial)\b/.test(text))
+  else if (
+    /\b(?:studio|carbon|graphite|industrial|creative|colou?rful)\b/.test(text)
+  )
     style = 'studio';
-  else if (/\b(?:minimal|minimalist|chalk|white|clean)\b/.test(text))
+  else if (
+    /\b(?:minimal|minimalist|chalk|white|clean|monochrome|simple)\b/.test(text)
+  )
     style = 'minimal';
   let quiet = defaults.quiet;
   if (/\b(?:quiet|silent|silenced)\b/.test(text)) quiet = true;

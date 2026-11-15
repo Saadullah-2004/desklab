@@ -1,5 +1,7 @@
 import {expect, test, type Page} from '@playwright/test';
 import {mkdir, writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {products} from '../../src/lib/catalog';
 
 async function capturePortfolio(
   page: Page,
@@ -13,7 +15,10 @@ async function capturePortfolio(
     animations: 'disabled',
   });
   // Explicitly requested captures only: routine test runs don't modify tracked documentation.
-  if (process.env.UPDATE_SCREENSHOTS === '1') {
+  if (
+    process.env.UPDATE_SCREENSHOTS === '1' &&
+    test.info().project.name === 'chromium'
+  ) {
     await mkdir('docs/screenshots', {recursive: true});
     await writeFile('docs/screenshots/' + documentationName, screenshot);
   }
@@ -45,6 +50,15 @@ async function expectChoiceContentsToFit(page: Page) {
     }
   }
 }
+
+test.beforeEach(async ({context}, testInfo) => {
+  // The isolated loopback server alone trusts this test header. Every case gets
+  // a separate visitor allowance; rate-limit enforcement is covered by API tests.
+  const hash = createHash('sha256').update(testInfo.testId).digest();
+  await context.setExtraHTTPHeaders({
+    'x-forwarded-for': `${hash[0] % 2 ? '192.0.2' : '198.51.100'}.${(hash[1] % 254) + 1}`,
+  });
+});
 
 function collectionCards(page: Page) {
   return page.locator('article.product-card');
@@ -112,13 +126,23 @@ test('collection filtering, product details and Escape dismissal work', async ({
   await page.keyboard.press('Escape');
   await expect(detail).toHaveCount(0);
   await expect(productButton).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(detail).toBeVisible();
+  await detail.getByRole('button', {name: 'Close Hush 75'}).click();
+  await expect(detail).toHaveCount(0);
+  await expect(productButton).toBeFocused();
   await page.getByRole('button', {name: 'Everything', exact: true}).click();
   await expect(collectionCards(page)).toHaveCount(18);
 });
 
-test('normal Chrome renders real WebGL and rotation changes the canvas', async ({
+test('Chromium renders real WebGL and rotation changes the canvas', async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName !== 'chromium',
+    'WebGL rendering proof is measured in Chromium; static fallback is checked in every browser.',
+  );
   await page.goto('/builder');
   const preview = page.locator('[data-preview]');
   await expect(preview).toHaveAttribute('data-preview', 'interactive');
@@ -288,7 +312,7 @@ test('builder calls the real recommendation API, customizes and reloads a shared
     ),
   ).toBe(true);
   await page.goto(url);
-  await expect(page.getByRole('status')).toContainText(
+  await expect(page.locator('.toast[role="status"]')).toContainText(
     'Shared workspace loaded',
   );
   await page.getByRole('button', {name: 'Keyboards', exact: true}).click();
@@ -373,7 +397,7 @@ test('invalid shared configurations are rejected without breaking the builder', 
     }),
   ).toString('base64url');
   await page.goto('/builder?setup=' + invalid);
-  await expect(page.getByRole('status')).toContainText(
+  await expect(page.locator('.toast[role="status"]')).toContainText(
     'That shared workspace is invalid',
   );
   await expect(
@@ -432,6 +456,15 @@ test.describe('mobile layout', () => {
     await expect(navigation).toBeHidden();
     await page.getByRole('button', {name: 'Toggle navigation'}).click();
     await expect(navigation).toBeVisible();
+    await expect(
+      navigation.getByRole('link', {name: 'The collection'}),
+    ).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(navigation).toBeHidden();
+    await expect(
+      page.getByRole('button', {name: 'Toggle navigation'}),
+    ).toBeFocused();
+    await page.getByRole('button', {name: 'Toggle navigation'}).click();
     await navigation.getByRole('link', {name: 'The collection'}).click();
     await expect(page).toHaveURL(/\/shop$/);
     await expect(
@@ -464,9 +497,25 @@ test.describe('mobile layout', () => {
       await page
         .getByRole('button', {name: 'Show static workspace illustration'})
         .click();
-      await expect(
-        page.getByRole('button', {name: 'Show 3D workspace'}),
-      ).toBeVisible();
+      await expect(page.locator('[data-preview]')).toHaveAttribute(
+        'data-preview',
+        'static',
+      );
+      const restore3D = page.getByRole('button', {name: 'Show 3D workspace'});
+      await expect(restore3D).toBeVisible();
+      await restore3D.click();
+      await expect(page.locator('[data-preview]')).toHaveAttribute(
+        'data-preview',
+        'interactive',
+      );
+      await page
+        .getByRole('button', {name: 'Show static workspace illustration'})
+        .click();
+      await expect(page.locator('[data-preview]')).toHaveAttribute(
+        'data-preview',
+        'static',
+      );
+      await expect(restore3D).toBeVisible();
     } else {
       await expect(
         page.getByRole('button', {name: '3D preview unavailable'}),
@@ -488,4 +537,243 @@ test.describe('mobile layout', () => {
       ),
     ).toBe(true);
   });
+});
+
+test('catalog retry preserves the shared setup and saved bag through an outage', async ({
+  page,
+}) => {
+  await page.goto('/builder');
+  await expect(
+    page.getByRole('button', {name: 'Build my workspace'}),
+  ).toBeEnabled();
+  await page.locator('.product-choice').filter({hasText: 'Form Desk'}).click();
+  await page.getByRole('button', {name: 'Add setup to bag'}).click();
+  const savedCount = await bag(page)
+    .getByRole('heading', {level: 2, name: /^Your bag/})
+    .textContent();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', {name: 'Share this workspace'}).click();
+  const sharedUrl = await page
+    .getByLabel('Share your workspace', {exact: true})
+    .inputValue();
+  let unavailable = true;
+  await page.route('**/api/catalog', async (route) => {
+    if (unavailable) {
+      await route.fulfill({status: 503, json: {error: 'Catalog offline'}});
+    } else {
+      await route.continue();
+    }
+  });
+  await page.goto(sharedUrl);
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'Your bag and setup are kept',
+  );
+  await expect(
+    page.getByRole('button', {name: 'Build my workspace'}),
+  ).toBeDisabled();
+  const choice = page.locator('.product-choice').filter({hasText: 'Form Desk'});
+  await expect(choice).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', {name: /^Open bag/}).click();
+  await expect(
+    bag(page).getByRole('heading', {level: 2, name: /^Your bag/}),
+  ).toHaveText(savedCount!);
+  await expect(bag(page).getByText('Form Desk', {exact: true})).toBeVisible();
+  await expect(
+    bag(page).getByRole('button', {name: 'Checkout not connected'}),
+  ).toBeDisabled();
+  await page.keyboard.press('Escape');
+  unavailable = false;
+  await page.getByRole('button', {name: 'Retry catalog', exact: true}).click();
+  await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', {name: 'Build my workspace'}),
+  ).toBeEnabled();
+  await expect(choice).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', {name: /^Open bag/}).click();
+  await expect(
+    bag(page).getByRole('heading', {level: 2, name: /^Your bag/}),
+  ).toHaveText(savedCount!);
+});
+
+test('a stalled catalog request reaches a bounded timeout and can recover', async ({
+  page,
+}) => {
+  await page.clock.install();
+  let stalled = true;
+  await page.route('**/api/catalog', async (route) => {
+    if (!stalled) await route.continue();
+    // Deliberately leave the first request pending until the client aborts it.
+  });
+  const firstRequest = page.waitForRequest('**/api/catalog');
+  await page.goto('/builder', {waitUntil: 'domcontentloaded'});
+  await firstRequest;
+  await expect(
+    page.getByText('Checking the current catalog. Preview prices are loading.'),
+  ).toBeVisible();
+  await page.clock.fastForward(15001);
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'The catalog took too long to respond.',
+  );
+  await expect(
+    page.getByRole('button', {name: 'Build my workspace'}),
+  ).toBeDisabled();
+  stalled = false;
+  await page.getByRole('button', {name: 'Retry catalog', exact: true}).click();
+  await expect(
+    page.getByRole('button', {name: 'Build my workspace'}),
+  ).toBeEnabled();
+});
+
+async function mockConnectedCatalog(page: Page) {
+  await page.route('**/api/catalog', (route) =>
+    route.fulfill({json: {products, source: 'shopify', checkoutEnabled: true}}),
+  );
+}
+
+test('checkout ignores rapid duplicate submits, permits the server deadline and recovers from failure', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await mockConnectedCatalog(page);
+  let requests = 0;
+  let release!: () => void;
+  const pendingResponse = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/checkout', async (route) => {
+    requests++;
+    await pendingResponse;
+    await route.fulfill({
+      status: 503,
+      json: {error: 'Test checkout is temporarily unavailable.'},
+    });
+  });
+  await page.goto('/shop');
+  await page
+    .getByRole('button', {name: 'Add Arc Desk to bag', exact: true})
+    .click();
+  const checkout = bag(page).getByRole('button', {
+    name: 'Continue to test checkout',
+  });
+  await expect(checkout).toBeEnabled();
+  await checkout.evaluate((element) => {
+    (element as HTMLButtonElement).click();
+    (element as HTMLButtonElement).click();
+  });
+  await expect.poll(() => requests).toBe(1);
+  await page.clock.fastForward(25000);
+  await expect(
+    bag(page).getByRole('button', {name: 'Opening secure checkout…'}),
+  ).toBeDisabled();
+  await expect(
+    bag(page).getByRole('button', {name: 'Increase Arc Desk quantity'}),
+  ).toBeDisabled();
+  release();
+  await expect(bag(page).getByRole('alert')).toHaveText(
+    'Test checkout is temporarily unavailable.',
+  );
+  await expect(checkout).toBeEnabled();
+  await checkout.click();
+  await expect.poll(() => requests).toBe(2);
+  await expect(
+    bag(page).getByRole('heading', {level: 2, name: /^Your bag/}),
+  ).toHaveText('Your bag (1)');
+});
+
+test('checkout handoff and browser Back preserve the bag without claiming an order completed', async ({
+  page,
+}) => {
+  await mockConnectedCatalog(page);
+  await page.route('**/api/checkout', (route) =>
+    route.fulfill({
+      json: {checkoutUrl: 'https://checkout.shopify.test/test-checkout'},
+    }),
+  );
+  // This locally fulfilled destination tests navigation only. No Shopify request or payment occurs.
+  await page.route('https://checkout.shopify.test/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<h1>Mock Shopify test checkout</h1>',
+    }),
+  );
+  await page.goto('/shop');
+  await page
+    .getByRole('button', {name: 'Add Arc Desk to bag', exact: true})
+    .click();
+  await expect(
+    bag(page).getByText('Test payments only. No physical fulfillment.'),
+  ).toBeVisible();
+  await bag(page)
+    .getByRole('button', {name: 'Continue to test checkout'})
+    .click();
+  await expect(page).toHaveURL('https://checkout.shopify.test/test-checkout');
+  await page.goBack();
+  await expect(bag(page)).toBeVisible();
+  await expect(bag(page).getByRole('status')).toContainText(
+    'DeskLab cannot confirm whether your Shopify order was completed.',
+  );
+  await expect(
+    bag(page).getByRole('heading', {level: 2, name: /^Your bag/}),
+  ).toHaveText('Your bag (1)');
+  await expect(
+    bag(page).getByRole('button', {name: 'Continue to test checkout'}),
+  ).toBeEnabled();
+  await bag(page).getByRole('button', {name: 'Clear bag', exact: true}).click();
+  await expect(
+    bag(page).getByRole('heading', {level: 2, name: /^Your bag/}),
+  ).toHaveText('Your bag (0)');
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(
+    page.getByRole('button', {name: 'Open bag, 0 items'}),
+  ).toBeVisible();
+});
+
+test('reduced motion starts with a useful static preview and keyboard controls retain focus', async ({
+  page,
+}) => {
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await page.goto('/builder');
+  await expect(
+    page.getByRole('button', {name: 'Build my workspace'}),
+  ).toBeEnabled();
+  await expect(page.locator('[data-preview]')).toHaveAttribute(
+    'data-preview',
+    'static',
+  );
+  await expect(page.locator('[data-preview] canvas')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', {name: 'Rotate workspace right'}),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', {name: 'Show 3D workspace'}),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () => getComputedStyle(document.documentElement).scrollBehavior,
+    ),
+  ).toBe('auto');
+  const build = page.getByRole('button', {name: 'Build my workspace'});
+  expect(
+    await build.evaluate(
+      (element) => getComputedStyle(element).transitionDuration,
+    ),
+  ).toBe('0s');
+  await page.getByRole('link', {name: 'Skip to content'}).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('main')).toBeFocused();
+  const add = page.getByRole('button', {name: 'Add setup to bag'});
+  await add.focus();
+  await page.keyboard.press('Enter');
+  const close = bag(page).getByRole('button', {name: /^Close Your bag/});
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(
+    bag(page).getByRole('button', {name: 'A little more exploring'}),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(bag(page)).toHaveCount(0);
+  await expect(add).toBeFocused();
 });

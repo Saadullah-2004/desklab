@@ -55,6 +55,10 @@ const categories: Category[] = [
   'accessory',
 ];
 const CART_KEY = 'desklab-cart-v1';
+const CHECKOUT_HANDOFF_KEY = 'desklab-checkout-handoff-v1';
+const CATALOG_TIMEOUT_MS = 15000;
+// Checkout verifies inventory and creates the Shopify cart in two bounded server calls.
+const CHECKOUT_TIMEOUT_MS = 35000;
 type Page = 'home' | 'builder' | 'shop' | 'about';
 type Result = Recommendation & {
   engine: 'rules' | 'gemini';
@@ -78,13 +82,49 @@ function Modal({
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
+    const previousOverflow = document.body.style.overflow;
+    const opener = document.activeElement;
+    document.body.style.overflow = 'hidden';
     dialog?.showModal();
-    return () => dialog?.close();
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+      // Safari does not restore a pointer-triggered dialog opener consistently.
+      if (opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus({preventScroll: true});
+      }
+    };
   }, []);
   return (
     <dialog
       ref={ref}
       className={`modal ${wide ? 'wide' : ''}`}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        const dialog = event.currentTarget;
+        const controls = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'a[href], button, input, select, textarea, [tabindex]',
+          ),
+        ).filter(
+          (element) =>
+            element.tabIndex >= 0 &&
+            !element.matches(':disabled, [hidden], [aria-hidden="true"]') &&
+            element.getClientRects().length > 0,
+        );
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        const active = document.activeElement;
+        // Native dialog containment can include the scrollable dialog itself.
+        // Keep sequential keyboard navigation cycling through its actual controls.
+        if (event.shiftKey && (active === first || active === dialog)) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && (active === last || active === dialog)) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }}
       onClose={(event) => {
         // React's development effect replay can queue a close event before reopening.
         if (!event.currentTarget.open) onClose();
@@ -117,6 +157,8 @@ export default function DeskLab({page}: {page: Page}) {
   const [ready, setReady] = useState(false);
   const [checkoutEnabled, setCheckoutEnabled] = useState(false);
   const [catalogError, setCatalogError] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -134,18 +176,22 @@ export default function DeskLab({page}: {page: Page}) {
   const [requestError, setRequestError] = useState('');
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
+  const [returnedFromCheckout, setReturnedFromCheckout] = useState(false);
+  const checkoutInFlight = useRef(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
   const [filter, setFilter] = useState<Category | 'all'>('all');
   const [builderCategory, setBuilderCategory] = useState<Category>('desk');
   const [shareUrl, setShareUrl] = useState('');
   const requestRef = useRef(0);
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/catalog')
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CATALOG_TIMEOUT_MS);
+    fetch('/api/catalog', {signal: controller.signal})
       .then(async (r) => {
         if (!r.ok)
-          throw Error(
-            'The catalog is temporarily unavailable. Please try again shortly.',
-          );
+          throw Error('The current catalog is temporarily unavailable.');
         return r.json();
       })
       .then((data) => {
@@ -153,20 +199,40 @@ export default function DeskLab({page}: {page: Page}) {
           setCatalog(data.products);
           setSource(data.source);
           setCheckoutEnabled(data.checkoutEnabled);
-          setReady(true);
+          setCatalogError('');
         }
       })
-      .catch((error) => {
+      .catch(() => {
         if (!cancelled) {
-          setCatalogError(error.message);
-          setReady(true);
+          setCatalogError(
+            controller.signal.aborted
+              ? 'The catalog took too long to respond.'
+              : 'The current catalog is temporarily unavailable.',
+          );
           setCheckoutEnabled(false);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        if (!cancelled) {
+          setReady(true);
+          setCatalogLoading(false);
         }
       });
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, []);
+  }, [catalogAttempt]);
+  function retryCatalog() {
+    setCatalogLoading(true);
+    setCheckoutEnabled(false);
+    setCatalogAttempt((attempt) => attempt + 1);
+  }
+  useEffect(() => {
+    if (menuOpen) navigationRef.current?.querySelector('a')?.focus();
+  }, [menuOpen]);
   // Browser state is restored once after hydration so server and initial client markup agree.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -224,6 +290,28 @@ export default function DeskLab({page}: {page: Page}) {
     }
     setHydrated(true);
   }, []);
+  useEffect(() => {
+    function restoreCheckoutHandoff(event?: PageTransitionEvent) {
+      // Initial document loads are handled by this effect; only BFCache restores
+      // need the pageshow path. A late initial load must not release a submit lock.
+      if (event && !event.persisted) return;
+      // A navigation or browser Back event proves no order or payment status.
+      checkoutInFlight.current = false;
+      setCheckoutBusy(false);
+      try {
+        if (sessionStorage.getItem(CHECKOUT_HANDOFF_KEY)) {
+          sessionStorage.removeItem(CHECKOUT_HANDOFF_KEY);
+          setReturnedFromCheckout(true);
+          setCartOpen(true);
+        }
+      } catch {
+        /* The saved bag still works when session storage is unavailable. */
+      }
+    }
+    restoreCheckoutHandoff();
+    window.addEventListener('pageshow', restoreCheckoutHandoff);
+    return () => window.removeEventListener('pageshow', restoreCheckoutHandoff);
+  }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (hydrated) {
@@ -257,7 +345,17 @@ export default function DeskLab({page}: {page: Page}) {
   const missingCart = cart.filter(
     (line) => !catalog.some((product) => product.id === line.productId),
   );
-  function addToCart(items: Product[]) {
+  function showProduct(product: Product, trigger: HTMLButtonElement) {
+    // WebKit does not focus buttons on pointer activation. Preserve the actual
+    // opener so closing a modal returns to the same place for every input method.
+    trigger.focus({preventScroll: true});
+    setDetail(product);
+  }
+  function openCart(trigger?: HTMLButtonElement) {
+    trigger?.focus({preventScroll: true});
+    setCartOpen(true);
+  }
+  function addToCart(items: Product[], trigger?: HTMLButtonElement) {
     setCart((old) => {
       const next = [...old];
       for (const p of items) {
@@ -273,7 +371,7 @@ export default function DeskLab({page}: {page: Page}) {
       return next;
     });
     setCheckoutError('');
-    setCartOpen(true);
+    openCart(trigger);
   }
   function quantity(id: string, delta: number) {
     setCart((old) =>
@@ -306,7 +404,7 @@ export default function DeskLab({page}: {page: Page}) {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({brief, preferences}),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(30000),
       });
       const data = await r.json();
       if (!r.ok)
@@ -357,32 +455,58 @@ export default function DeskLab({page}: {page: Page}) {
     }
   }
   async function checkout() {
+    if (
+      checkoutInFlight.current ||
+      !checkoutEnabled ||
+      catalogLoading ||
+      catalogError ||
+      missingCart.length ||
+      !cart.length
+    )
+      return;
+    checkoutInFlight.current = true;
     setCheckoutBusy(true);
     setCheckoutError('');
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, CHECKOUT_TIMEOUT_MS);
     try {
       const r = await fetch('/api/checkout', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({lines: cart}),
-        signal: AbortSignal.timeout(20000),
+        signal: controller.signal,
       });
       const data = await r.json();
       if (!r.ok) throw Error(data.error || 'Checkout is unavailable.');
       const url = new URL(data.checkoutUrl);
       if (url.protocol !== 'https:') throw Error('Invalid checkout link.');
+      try {
+        sessionStorage.setItem(CHECKOUT_HANDOFF_KEY, String(Date.now()));
+      } catch {
+        /* Navigation and the saved bag do not depend on session storage. */
+      }
       window.location.assign(url.toString());
     } catch (error) {
       setCheckoutError(
-        error instanceof Error ? error.message : 'Unable to reach checkout.',
+        error instanceof Error && !timedOut
+          ? error.message
+          : 'Checkout took too long to respond. Your bag is saved. Try again.',
       );
+      checkoutInFlight.current = false;
       setCheckoutBusy(false);
+    } finally {
+      clearTimeout(timeout);
     }
   }
   const card = (p: Product) => (
     <article className="product-card" key={p.id}>
       <button
         className="product-art-button"
-        onClick={() => setDetail(p)}
+        onClick={(event) => showProduct(p, event.currentTarget)}
         aria-label={`View ${p.name}`}
       >
         <ProductVisual product={p} />
@@ -395,7 +519,10 @@ export default function DeskLab({page}: {page: Page}) {
       </button>
       <div className="product-info">
         <div>
-          <button className="product-name" onClick={() => setDetail(p)}>
+          <button
+            className="product-name"
+            onClick={(event) => showProduct(p, event.currentTarget)}
+          >
             {p.name}
           </button>
           <p>{p.subtitle}</p>
@@ -406,8 +533,8 @@ export default function DeskLab({page}: {page: Page}) {
         <span className="swatch" style={{background: p.color}} />
         <span>{p.finish}</span>
         <button
-          onClick={() => addToCart([p])}
-          disabled={!p.available}
+          onClick={(event) => addToCart([p], event.currentTarget)}
+          disabled={!p.available || !ready || catalogLoading || !!catalogError}
           aria-label={`Add ${p.name} to bag`}
         >
           Add to bag <Plus size={14} />
@@ -426,12 +553,22 @@ export default function DeskLab({page}: {page: Page}) {
           Find your setup <ArrowRight size={12} />
         </Link>
       </div>
-      <header className="site-header">
+      <header
+        className="site-header"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && menuOpen) {
+            setMenuOpen(false);
+            menuButtonRef.current?.focus();
+          }
+        }}
+      >
         <Link href="/" className="wordmark" aria-label="DeskLab home">
           desk<span>lab</span>
           <i />
         </Link>
         <nav
+          id="main-navigation"
+          ref={navigationRef}
           aria-label="Main navigation"
           className={menuOpen ? 'navigation open' : 'navigation'}
         >
@@ -456,7 +593,9 @@ export default function DeskLab({page}: {page: Page}) {
         </nav>
         <div className="header-actions">
           <button
+            ref={menuButtonRef}
             className="icon-button mobile-menu"
+            aria-controls="main-navigation"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-expanded={menuOpen}
             aria-label="Toggle navigation"
@@ -465,7 +604,7 @@ export default function DeskLab({page}: {page: Page}) {
           </button>
           <button
             className="bag-button"
-            onClick={() => setCartOpen(true)}
+            onClick={(event) => openCart(event.currentTarget)}
             aria-label={`Open bag, ${cartCount} items`}
           >
             <ShoppingBag size={19} />
@@ -474,7 +613,30 @@ export default function DeskLab({page}: {page: Page}) {
           </button>
         </div>
       </header>
-      <main id="main">
+      <main id="main" tabIndex={-1}>
+        {(catalogLoading || catalogError) && (
+          <div className="catalog-status">
+            {catalogError ? (
+              <p role="alert">
+                {catalogError} Your bag and setup are kept. Preview prices may
+                be out of date.
+              </p>
+            ) : (
+              <p role="status">
+                Checking the current catalog. Preview prices are loading.
+              </p>
+            )}
+            {catalogError && (
+              <button
+                className="text-link"
+                onClick={retryCatalog}
+                disabled={catalogLoading}
+              >
+                {catalogLoading ? 'Retrying catalog…' : 'Retry catalog'}
+              </button>
+            )}
+          </div>
+        )}
         {page === 'home' && (
           <>
             <section className="hero">
@@ -627,6 +789,7 @@ export default function DeskLab({page}: {page: Page}) {
             <div className="catalog-toolbar">
               <div className="filter-tabs" aria-label="Filter products">
                 <button
+                  aria-pressed={filter === 'all'}
                   className={filter === 'all' ? 'active' : ''}
                   onClick={() => setFilter('all')}
                 >
@@ -635,6 +798,7 @@ export default function DeskLab({page}: {page: Page}) {
                 {categories.map((c) => (
                   <button
                     key={c}
+                    aria-pressed={filter === c}
                     className={filter === c ? 'active' : ''}
                     onClick={() => setFilter(c)}
                   >
@@ -651,11 +815,6 @@ export default function DeskLab({page}: {page: Page}) {
                 pieces
               </span>
             </div>
-            {catalogError && (
-              <p className="error-message" role="alert">
-                {catalogError}
-              </p>
-            )}
             <div className="product-grid shop-grid">
               {catalog
                 .filter((p) => filter === 'all' || p.category === filter)
@@ -685,12 +844,19 @@ export default function DeskLab({page}: {page: Page}) {
                 </label>
                 <textarea
                   id="brief"
+                  aria-describedby="brief-privacy"
                   disabled={!ready}
                   value={brief}
                   maxLength={600}
                   onChange={(e) => setBrief(e.target.value)}
                   placeholder="A quiet, warm workspace for coding, under $650..."
                 />
+                <p className="brief-privacy" id="brief-privacy">
+                  Connected AI sends your brief to Google. Free-tier requests
+                  may be used to improve Google products. Avoid personal
+                  information.{' '}
+                  <Link href="/about#privacy">How your brief is used</Link>
+                </p>
                 <div className="field-heading">
                   <label htmlFor="budget">Your budget</label>
                   <strong>{formatMoney(preferences.budgetCents)}</strong>
@@ -736,11 +902,18 @@ export default function DeskLab({page}: {page: Page}) {
                       </option>
                     ))}
                 </select>
-                <label>A feeling to start with</label>
-                <div className="style-options">
+                <span className="field-label" id="style-label">
+                  A feeling to start with
+                </span>
+                <div
+                  className="style-options"
+                  role="group"
+                  aria-labelledby="style-label"
+                >
                   {(['warm', 'minimal', 'studio'] as Style[]).map((s) => (
                     <button
                       disabled={!ready}
+                      aria-pressed={preferences.style === s}
                       className={preferences.style === s ? 'selected' : ''}
                       key={s}
                       onClick={() => setPreferences((p) => ({...p, style: s}))}
@@ -764,7 +937,7 @@ export default function DeskLab({page}: {page: Page}) {
                 <button
                   className="button primary full"
                   onClick={generate}
-                  disabled={busy || !ready || !!catalogError}
+                  disabled={busy || !ready || catalogLoading || !!catalogError}
                 >
                   <Sparkles size={17} />
                   {busy ? 'Finding your fit…' : 'Build my workspace'}
@@ -781,11 +954,6 @@ export default function DeskLab({page}: {page: Page}) {
                 {requestError && (
                   <p role="alert" className="error-message">
                     {requestError}
-                  </p>
-                )}
-                {catalogError && (
-                  <p role="alert" className="error-message">
-                    {catalogError}
                   </p>
                 )}
               </aside>
@@ -826,8 +994,12 @@ export default function DeskLab({page}: {page: Page}) {
                     </button>
                     <button
                       className="button dark"
-                      onClick={() => addToCart(selected)}
-                      disabled={!valid}
+                      onClick={(event) =>
+                        addToCart(selected, event.currentTarget)
+                      }
+                      disabled={
+                        !valid || !ready || catalogLoading || !!catalogError
+                      }
                     >
                       Add setup to bag <ShoppingBag size={17} />
                     </button>
@@ -853,6 +1025,7 @@ export default function DeskLab({page}: {page: Page}) {
                     {categories.map((c) => (
                       <button
                         key={c}
+                        aria-pressed={builderCategory === c}
                         className={builderCategory === c ? 'active' : ''}
                         onClick={() => setBuilderCategory(c)}
                       >
@@ -866,7 +1039,8 @@ export default function DeskLab({page}: {page: Page}) {
                       .map((p) => (
                         <button
                           key={p.id}
-                          disabled={!p.available}
+                          disabled={!p.available || !ready}
+                          aria-pressed={selectedIds.includes(p.id)}
                           className={`product-choice ${selectedIds.includes(p.id) ? 'selected' : ''}`}
                           onClick={() => selectProduct(p)}
                         >
@@ -924,7 +1098,7 @@ export default function DeskLab({page}: {page: Page}) {
                   into something you can explore.
                 </p>
               </article>
-              <article>
+              <article id="privacy">
                 <span>02 / THE INTELLIGENCE</span>
                 <h2>Let rules do the checking.</h2>
                 <p>
@@ -932,6 +1106,13 @@ export default function DeskLab({page}: {page: Page}) {
                   deterministic solver checks budget, dimensions, stock and
                   keyboard preferences. Without a model, structured controls and
                   preference matching remain available.
+                </p>
+                <p>
+                  When connected AI is enabled, your brief and preferences are
+                  sent to Google Gemini. Google may use free-tier requests to
+                  improve its products. Do not include personal or confidential
+                  information. The structured controls also work without a
+                  written brief.
                 </p>
               </article>
               <article>
@@ -988,11 +1169,15 @@ export default function DeskLab({page}: {page: Page}) {
           </span>
           <span className="demo-status">
             <span className="dot" />
-            {source === 'demo'
-              ? 'Demo catalog · No physical fulfillment'
-              : checkoutEnabled
-                ? 'Shopify catalog · Test checkout'
-                : 'Shopify catalog · Checkout disabled'}
+            {catalogError
+              ? 'Catalog unavailable · Preview only'
+              : catalogLoading
+                ? 'Checking catalog · Preview only'
+                : source === 'demo'
+                  ? 'Demo catalog · No physical fulfillment'
+                  : checkoutEnabled
+                    ? 'Shopify catalog · Test checkout'
+                    : 'Shopify catalog · Checkout disabled'}
           </span>
           <a
             href="https://github.com/Saadullah-2004/desklab"
@@ -1047,9 +1232,14 @@ export default function DeskLab({page}: {page: Page}) {
               </dl>
               <button
                 className="button dark full"
-                disabled={!detail.available}
-                onClick={() => {
-                  addToCart([detail]);
+                disabled={
+                  !detail.available ||
+                  !ready ||
+                  catalogLoading ||
+                  !!catalogError
+                }
+                onClick={(event) => {
+                  addToCart([detail], event.currentTarget);
                   setDetail(null);
                 }}
               >
@@ -1067,6 +1257,24 @@ export default function DeskLab({page}: {page: Page}) {
           title={`Your bag (${cartCount})`}
           onClose={() => setCartOpen(false)}
         >
+          {returnedFromCheckout && (
+            <div className="demo-callout checkout-return" role="status">
+              <div>
+                <strong>Your bag is still here.</strong>
+                <p>
+                  DeskLab cannot confirm whether your Shopify order was
+                  completed. Check Shopify for confirmation before submitting
+                  again. Clear your bag when you are finished.
+                </p>
+                <button
+                  className="text-link"
+                  onClick={() => setReturnedFromCheckout(false)}
+                >
+                  Dismiss checkout notice
+                </button>
+              </div>
+            </div>
+          )}
           {cart.length ? (
             <>
               <div className="cart-lines">
@@ -1099,6 +1307,7 @@ export default function DeskLab({page}: {page: Page}) {
                       <p>{l.product.finish}</p>
                       <div className="quantity">
                         <button
+                          disabled={checkoutBusy}
                           aria-label={`Decrease ${l.product.name} quantity`}
                           onClick={() => quantity(l.productId, -1)}
                         >
@@ -1108,7 +1317,7 @@ export default function DeskLab({page}: {page: Page}) {
                         <button
                           aria-label={`Increase ${l.product.name} quantity`}
                           onClick={() => quantity(l.productId, 1)}
-                          disabled={l.quantity >= 10}
+                          disabled={checkoutBusy || l.quantity >= 10}
                         >
                           <Plus size={13} />
                         </button>
@@ -1127,6 +1336,20 @@ export default function DeskLab({page}: {page: Page}) {
               <p className="small-note">
                 Shipping and taxes are calculated by Shopify at checkout.
               </p>
+              {checkoutEnabled && (
+                <div className="demo-callout">
+                  <CircleHelp size={18} />
+                  <div>
+                    <strong>
+                      Test payments only. No physical fulfillment.
+                    </strong>
+                    <p>
+                      Use the test payment details shown by the configured
+                      Shopify gateway. Do not enter a real payment card.
+                    </p>
+                  </div>
+                </div>
+              )}
               {!checkoutEnabled && (
                 <div className="demo-callout">
                   <CircleHelp size={18} />
@@ -1144,6 +1367,7 @@ export default function DeskLab({page}: {page: Page}) {
                 disabled={
                   !checkoutEnabled ||
                   checkoutBusy ||
+                  catalogLoading ||
                   !!catalogError ||
                   missingCart.length > 0
                 }
@@ -1160,6 +1384,19 @@ export default function DeskLab({page}: {page: Page}) {
                 <p role="alert" className="error-message">
                   {checkoutError}
                 </p>
+              )}
+              {returnedFromCheckout && (
+                <button
+                  className="text-link continue"
+                  disabled={checkoutBusy}
+                  onClick={() => {
+                    setCart([]);
+                    setReturnedFromCheckout(false);
+                    setCheckoutError('');
+                  }}
+                >
+                  Clear bag
+                </button>
               )}
               <button
                 className="text-link continue"

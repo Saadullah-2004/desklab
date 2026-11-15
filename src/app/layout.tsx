@@ -1,9 +1,11 @@
 import type {Metadata} from 'next';
+import {appOrigin} from '@/lib/server-config';
+import {pageMetadata} from './_metadata';
 import './globals.css';
 export const metadata: Metadata = {
-  title: 'DeskLab | Make room for your best work',
-  description:
-    'Thoughtful tools. A space that feels like you. Build a workspace around your space, style and budget.',
+  ...pageMetadata('/'),
+  metadataBase: new URL(appOrigin() ?? 'http://localhost:3000'),
+  applicationName: 'DeskLab',
 };
 export default function RootLayout({
   children,

@@ -5,12 +5,12 @@ import {
 } from '@/lib/ai';
 import {recommendSetup} from '@/lib/recommend';
 import {CommerceError, getCatalog} from '@/lib/shopify';
-import {errorResponse, readJson} from '../_utils';
+import {handleApiRequest, readJson} from '../_utils';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
-  try {
+  return handleApiRequest('recommend', request, async () => {
     const body = await readJson(request);
     if (typeof body.brief !== 'string' || body.brief.length > 1_000) {
       throw new CommerceError(
@@ -28,20 +28,13 @@ export async function POST(request: Request) {
       interpreted.preferences,
       catalog.products,
     );
-    return Response.json(
-      {
-        ...recommendation,
-        engine: interpreted.engine,
-        notices: interpreted.notices,
-        catalogSource: catalog.source,
-        catalogSnapshot: catalog.products,
-        checkoutEnabled: catalog.checkoutEnabled,
-      },
-      {
-        headers: {'Cache-Control': 'no-store'},
-      },
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
+    return Response.json({
+      ...recommendation,
+      engine: interpreted.engine,
+      notices: interpreted.notices,
+      catalogSource: catalog.source,
+      catalogSnapshot: catalog.products,
+      checkoutEnabled: catalog.checkoutEnabled,
+    });
+  });
 }

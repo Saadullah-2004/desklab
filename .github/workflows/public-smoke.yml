@@ -1,0 +1,51 @@
+name: Public smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Canonical public HTTPS origin to verify
+        required: true
+        type: string
+  schedule:
+    # One bounded check daily. The job stays disabled until the URL is configured.
+    - cron: '17 14 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    # Standard hosted runners are free for public repositories. Do not run this
+    # workflow in a private repository or enable paid runner/billing features.
+    if: >-
+      github.event.repository.private == false &&
+      (github.event_name == 'workflow_dispatch' || vars.DESKLAB_PUBLIC_URL != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Pass user input through the environment, never into shell source.
+      APP_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.url || vars.DESKLAB_PUBLIC_URL }}
+      NEXT_TELEMETRY_DISABLED: '1'
+      ENABLE_LIVE_AI: 'false'
+      GEMINI_FREE_TIER_CONFIRMED: 'false'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          # Keep this daily check free of retained cache/artifact storage.
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Check public deployment without AI or checkout mutations
+        run: pnpm smoke:public

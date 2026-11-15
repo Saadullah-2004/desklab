@@ -12,6 +12,8 @@
     "format:check": "prettier --check .",
     "test": "node --conditions=react-server --import tsx --test tests/*.test.ts src/lib/*.test.ts",
     "test:e2e": "playwright test",
+    "smoke:public": "node --import tsx scripts/smoke-public.ts",
+    "eval:ai": "node --conditions=react-server --import tsx scripts/ai-eval.ts",
     "seed:plan": "node --conditions=react-server --import tsx scripts/shopify-seed.ts --plan",
     "seed:csv": "node --import tsx scripts/shopify-export-csv.ts"
   },

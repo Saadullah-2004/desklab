@@ -1,15 +1,11 @@
 import {createCheckout} from '@/lib/shopify';
-import {readJson, errorResponse} from '../_utils';
+import {readJson, handleApiRequest} from '../_utils';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
-  try {
+  return handleApiRequest('checkout', request, async () => {
     const body = await readJson(request);
-    return Response.json(await createCheckout(body.lines), {
-      headers: {'Cache-Control': 'no-store'},
-    });
-  } catch (error) {
-    return errorResponse(error);
-  }
+    return Response.json(await createCheckout(body.lines));
+  });
 }

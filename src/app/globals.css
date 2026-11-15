@@ -184,8 +184,8 @@ svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
 }
 .icon-button:hover {
@@ -682,6 +682,38 @@ svg {
   color: var(--muted);
   font-size: 13px;
 }
+.catalog-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 16px 5%;
+  background: var(--sage);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.catalog-status p {
+  flex: 1 1 280px;
+}
+.catalog-status button {
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.brief-privacy {
+  margin-top: 10px;
+  color: #62685d;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.brief-privacy a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.checkout-return .text-link {
+  margin-top: 12px;
+  min-height: 32px;
+  font-size: 11px;
+}
 .catalog-toolbar {
   display: flex;
   justify-content: space-between;
@@ -772,7 +804,8 @@ svg {
   letter-spacing: 0;
   font-weight: 600;
 }
-.builder-controls label {
+.builder-controls label,
+.builder-controls .field-label {
   display: block;
   font-size: 10px;
   margin-bottom: 9px;
@@ -1146,8 +1179,8 @@ svg {
   border-radius: 3px;
 }
 .quantity button {
-  width: 27px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
 }
