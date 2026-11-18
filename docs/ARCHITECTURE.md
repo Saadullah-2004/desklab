@@ -77,11 +77,15 @@ These controls supplement the required free account settings: Vercel Hobby, Upst
 
 Production application logs contain a fixed route name, HTTP status and duration only. They exclude request bodies, briefs, responses, customer identifiers, cart tokens, raw IPs and credentials. Platform access logs have their own retention behavior. Shared limiter records contain counters and expiring HMAC identifiers.
 
-`GET /api/health` returns only `ok` or `unavailable`. It checks origin configuration and Redis reachability using a PING cached for 30 seconds per instance. It does not load Shopify, spend AI allowance or create carts, and does not certify payment configuration, model availability or billing tier. The separate public smoke script checks the catalog and an empty-brief recommendation without model calls or cart creation. Its daily workflow schedule is now enabled through the configured `DESKLAB_PUBLIC_URL` repository variable. The first manual workflow run passed on `ee1ce24`; no scheduled-run result is claimed yet.
+`GET /api/health` returns only `ok` or `unavailable`. It checks origin configuration and Redis reachability using a PING cached for 30 seconds per instance. It does not load Shopify, spend AI allowance or create carts, and does not certify payment configuration, model availability or billing tier. The separate public smoke script checks the catalog and an empty-brief recommendation without model calls or cart creation. Its daily workflow uses the configured `DESKLAB_PUBLIC_URL` repository variable. The first manual run passed on `ee1ce24`; scheduled runs passed on [November 16](https://github.com/Saadullah-2004/desklab/actions/runs/43979055837) and [November 17, 2026](https://github.com/Saadullah-2004/desklab/actions/runs/44190040595), both at `6664920`. This establishes two successful scheduled observations, not continuous availability or future-delivery guarantees.
 
 The UI discloses that live interpretation sends the brief and selected preferences to Google, whose free-tier terms permit use to improve products. Leaving the brief empty avoids that transfer. No free-text brief is included in shared configurations. Response headers restrict framing, content sources, MIME sniffing and referrers. The CSP retains inline bootstrap scripts for Next's static pages, so it is not a nonce-based policy.
 
 ## Sharing and persistence
+
+Builder requests carry a local revision guard. Changing a brief, preference or selected product invalidates and cancels a pending recommendation, and obsolete success/error/finally paths cannot replace newer state. Component cleanup cancels its request. Cancellation saves work; the revision guard establishes which response may update the interface.
+
+The current selection's “Why this setup fits” disclosure calls `evaluateSelectedSetup`, which reuses the shared validator and supplies factual reasons and compromises to both the interface and planner. It recomputes from selected products and current preferences, including manual changes and restored links. Invalid selections show the actual failing constraints instead of fit reassurance.
 
 Versioned configuration URLs serialize catalog IDs, quantities and structured preferences. The current format preserves budget, available width, style and quiet settings. Legacy links remain readable. Decoders validate versions, shapes, known IDs and bounded values before accepting a payload.
 
@@ -100,6 +104,8 @@ The homepage, collection, builder and About page each declare their own title, d
 Only a configured public production origin can be indexed. Robots rules exclude API routes, and the sitemap lists the four public pages. Vercel previews, development, loopback and invalid/missing origins are noindex and publish no sitemap entries. Metadata is built from `APP_ORIGIN`, using the same origin parser as the server boundary; changing it requires a rebuild.
 
 ## Test and integration boundaries
+
+The [November 18 verification](RELIABILITY-CHECKS.md) passed 109 domain/backend tests, 49 production browser checks with one existing intentional skip, and 14 real Redis scenarios across four worker processes. The separate Redis harness forwards unchanged production Lua to a private local Redis socket and invokes actual route handlers for failure checks. It does not test hosted Upstash transport or production throughput. Lint, TypeScript and the browser suite's production build passed.
 
 - Domain tests cover fit, budget, stock, deterministic selection, manual swaps and versioned configuration validation.
 - Backend tests replace upstream providers and exercise prices, quantities, errors, test-checkout gating, distributed rate limits, origin handling, diagnostics and AI fallback behavior.

@@ -2,13 +2,13 @@
 
 An interactive workspace builder and headless Shopify storefront. Describe your space, budget and style, explore an original desk collection in 3D, and assemble a setup that passes the same fit checks whether it is recommended or customized by hand.
 
-**Next.js · TypeScript · React Three Fiber · Shopify Storefront API · Playwright**
+**Next.js · TypeScript · React Three Fiber · Shopify Storefront API · Redis · Playwright**
 
 **[Open the live demo](https://desklab-saadullah-2004.vercel.app)** · Deployed on Vercel Hobby. Live AI, configuration sharing, hosted test payment and the return to the storefront have been exercised publicly.
 
 DeskLab is a portfolio demonstration by Saad Shahzad. Its 18 products are fictional, test orders do not represent stocked goods, and there is no physical fulfillment.
 
-[Architecture and tradeoffs](docs/ARCHITECTURE.md) · [Portfolio walkthrough and resume bullets](docs/PORTFOLIO.md)
+[Architecture and tradeoffs](docs/ARCHITECTURE.md) · [Portfolio walkthrough and resume bullets](docs/PORTFOLIO.md) · [Builder and Redis verification](docs/RELIABILITY-CHECKS.md)
 
 ## Preview
 
@@ -32,6 +32,7 @@ The builder combines a visual preview with editable preferences, product choices
 - Open `/builder` and describe a warm, quiet workspace under $650.
 - Change the width or budget and generate a new setup.
 - Swap individual pieces, inspect dimensions and explore the 3D scene.
+- Open “Why this setup fits” to inspect the current budget, dimensions and any compromises. Explanations update after manual edits and shared-link restoration.
 - Copy a workspace link and reopen it in another browser.
 - Add pieces to the bag, change quantities and reload to check persistence.
 - With a test Shopify store connected, continue to Shopify's hosted checkout.
@@ -40,7 +41,9 @@ All prices are CAD. Budgets cover products before tax and shipping. The fit mode
 
 ## Verification status
 
-Verification snapshot, November 15, 2026:
+November 18 local update: newer edits take precedence over pending recommendations, and a keyboard-accessible disclosure explains the current setup using the shared validator. Lint and TypeScript passed, along with **109 domain/backend tests**, **49 production browser checks** (one existing intentional skip), and **14 real Redis scenarios across four worker processes** (15 tests including the parent). Redis tests execute unchanged production Lua through a test-only local transport. See the [verification scope and reproducible commands](docs/RELIABILITY-CHECKS.md).
+
+Earlier integration snapshot, November 15, 2026:
 
 | Area                 | Evidence                                                                                                                                                                                                |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -268,6 +271,8 @@ pnpm build
 
 Tests use the `react-server` condition for server-only modules. They require no production credentials and make no paid model requests.
 
+With `redis-server` installed, run `pnpm test:redis` for the separate real Redis suite. Alternatively set `REDIS_SERVER_BIN` to an existing executable. It starts its own private Unix socket with TCP and persistence disabled, blocks external provider calls, and removes its owned processes and temporary data afterward. The [Redis verification notes](docs/RELIABILITY-CHECKS.md) distinguish these integration checks from the fast test doubles and hosted-provider evidence.
+
 The browser suite builds and starts an isolated Next.js production server on port 3001 with commerce credentials blank and live AI disabled. It runs Chromium and WebKit projects, using installed Google Chrome for the Chromium project locally:
 
 ```sh
@@ -281,9 +286,9 @@ pnpm exec playwright install chromium webkit
 PLAYWRIGHT_CHANNEL=chromium pnpm test:e2e
 ```
 
-GitHub Actions runs a frozen-lockfile install, code checks, a production build and the Chromium/WebKit browser suite on pushes and pull requests. Failure traces and screenshots are uploaded as temporary CI artifacts. Before calling a connected deployment verified, also complete a test order and inspect it in Shopify admin. Automated tests do not verify payment or shipping configuration.
+GitHub Actions runs a frozen-lockfile install, code checks, the real Redis suite, a production build and the Chromium/WebKit browser suite on pushes and pull requests. Redis 7.2.17 is built in runner temporary storage from its checksum-verified official archive. Failure traces and screenshots are uploaded as temporary CI artifacts. Payment or shipping changes require a test order and Shopify admin inspection; automated tests do not verify that configuration. The current application-only update retains the previously verified test-payment configuration.
 
-`pnpm smoke:public --url=https://desklab-saadullah-2004.vercel.app` checks the homepage, production headers, readiness, all 18 live catalog entries and an empty-brief recommendation. It passed against the first production deployment without Gemini calls or carts; a demo-only catalog intentionally fails this connected-store check. The repository's `DESKLAB_PUBLIC_URL` variable now points to the canonical public URL, enabling the existing daily public-smoke schedule. Its [first manual workflow run](https://github.com/Saadullah-2004/desklab/actions/runs/43773476768) passed on `ee1ce24`. The daily schedule is enabled; no scheduled-run result is claimed yet.
+`pnpm smoke:public --url=https://desklab-saadullah-2004.vercel.app` checks the homepage, production headers, readiness, all 18 live catalog entries and an empty-brief recommendation. It passed against the first production deployment without Gemini calls or carts; a demo-only catalog intentionally fails this connected-store check. The repository's `DESKLAB_PUBLIC_URL` variable points to the canonical public URL. Its [first manual workflow run](https://github.com/Saadullah-2004/desklab/actions/runs/43773476768) passed on `ee1ce24`. Scheduled runs passed on [November 16](https://github.com/Saadullah-2004/desklab/actions/runs/43979055837) and [November 17, 2026](https://github.com/Saadullah-2004/desklab/actions/runs/44190040595), both at `6664920`. These are two successful observations, not an uptime percentage or a guarantee of future delivery.
 
 To refresh the documentation screenshots from the isolated demo browser tests:
 
