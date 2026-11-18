@@ -58,6 +58,10 @@ textarea:focus-visible {
   outline: 3px solid #c27b4e;
   outline-offset: 4px;
 }
+.setup-explanation summary:focus-visible {
+  outline: 3px solid #c27b4e;
+  outline-offset: 4px;
+}
 h1,
 h2,
 h3,
@@ -958,6 +962,36 @@ svg {
 }
 .build-status.warning {
   color: #a25536;
+}
+.setup-explanation {
+  border-bottom: 1px solid var(--line);
+  padding: 15px 0;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.setup-explanation summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 0;
+}
+.setup-explanation ul {
+  margin: 10px 0 0;
+  padding-left: 19px;
+}
+.setup-explanation li + li {
+  margin-top: 4px;
+}
+.setup-explanation p {
+  margin-top: 12px;
+  color: var(--muted);
+}
+.setup-compromises {
+  margin-top: 12px;
+  color: #a25536;
+}
+.setup-compromises ul {
+  margin-top: 4px;
 }
 .summary-actions {
   display: flex;

@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import {products as demoProducts, formatMoney} from '@/lib/catalog';
-import {recommendSetup, validateSelectedSetup} from '@/lib/recommend';
+import {evaluateSelectedSetup, recommendSetup} from '@/lib/recommend';
 import {
   decodeSharedConfiguration,
   encodeConfiguration,
@@ -191,6 +191,14 @@ export default function DeskLab({page}: {page: Page}) {
   const [builderCategory, setBuilderCategory] = useState<Category>('desk');
   const [shareUrl, setShareUrl] = useState('');
   const requestRef = useRef(0);
+  const recommendationController = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      ++requestRef.current;
+      recommendationController.current?.abort();
+    },
+    [],
+  );
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -352,7 +360,7 @@ export default function DeskLab({page}: {page: Page}) {
     0,
   );
   const cartCount = cart.reduce((sum, l) => sum + l.quantity, 0);
-  const validation = validateSelectedSetup(selected, preferences);
+  const validation = evaluateSelectedSetup(selected, preferences);
   const valid = validation.valid;
   const missingCart = cart.filter(
     (line) => !catalog.some((product) => product.id === line.productId),
@@ -397,17 +405,37 @@ export default function DeskLab({page}: {page: Page}) {
     );
     setCheckoutError('');
   }
+  function editWorkspace() {
+    // Edits win over every part of an older response, including errors and its
+    // catalog snapshot. Release pending feedback so the new brief can be built.
+    ++requestRef.current;
+    recommendationController.current?.abort();
+    recommendationController.current = null;
+    setBusy(false);
+    setRequestError('');
+    setEngine('rules');
+    setEngineNotices([]);
+    setShareUrl('');
+  }
+  function updatePreferences(change: Partial<Preferences>) {
+    editWorkspace();
+    setPreferences((previous) => ({...previous, ...change}));
+  }
   function selectProduct(p: Product) {
+    editWorkspace();
     setSelectedIds((old) => [
       ...old.filter(
         (id) => catalog.find((item) => item.id === id)?.category !== p.category,
       ),
       p.id,
     ]);
-    setShareUrl('');
   }
   async function generate() {
     const id = ++requestRef.current;
+    recommendationController.current?.abort();
+    const controller = new AbortController();
+    recommendationController.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 30000);
     setBusy(true);
     setRequestError('');
     setShareUrl('');
@@ -416,7 +444,7 @@ export default function DeskLab({page}: {page: Page}) {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({brief, preferences}),
-        signal: AbortSignal.timeout(30000),
+        signal: controller.signal,
       });
       const data = await r.json();
       if (!r.ok)
@@ -441,11 +469,20 @@ export default function DeskLab({page}: {page: Page}) {
             'No complete setup fits. Try a larger budget or desk width.',
         );
     } catch (error) {
+      if (id !== requestRef.current) return;
       setRequestError(
-        error instanceof Error ? error.message : 'Please try again.',
+        controller.signal.aborted
+          ? 'Recommendations took too long to respond. Please try again.'
+          : error instanceof Error
+            ? error.message
+            : 'Please try again.',
       );
     } finally {
-      if (id === requestRef.current) setBusy(false);
+      clearTimeout(timeout);
+      if (id === requestRef.current) {
+        recommendationController.current = null;
+        setBusy(false);
+      }
     }
   }
   async function share() {
@@ -863,7 +900,10 @@ export default function DeskLab({page}: {page: Page}) {
                   disabled={!ready}
                   value={brief}
                   maxLength={600}
-                  onChange={(e) => setBrief(e.target.value)}
+                  onChange={(e) => {
+                    editWorkspace();
+                    setBrief(e.target.value);
+                  }}
                   placeholder="A quiet, warm workspace for coding, under $650..."
                 />
                 <p className="brief-privacy" id="brief-privacy">
@@ -885,10 +925,9 @@ export default function DeskLab({page}: {page: Page}) {
                   step="2500"
                   value={preferences.budgetCents}
                   onChange={(e) =>
-                    setPreferences((p) => ({
-                      ...p,
+                    updatePreferences({
                       budgetCents: Number(e.target.value),
-                    }))
+                    })
                   }
                 />
                 <div className="range-labels">
@@ -901,10 +940,9 @@ export default function DeskLab({page}: {page: Page}) {
                   disabled={!ready}
                   value={preferences.deskWidthCm}
                   onChange={(e) =>
-                    setPreferences((p) => ({
-                      ...p,
+                    updatePreferences({
                       deskWidthCm: Number(e.target.value),
-                    }))
+                    })
                   }
                 >
                   {Array.from(
@@ -931,7 +969,7 @@ export default function DeskLab({page}: {page: Page}) {
                       aria-pressed={preferences.style === s}
                       className={preferences.style === s ? 'selected' : ''}
                       key={s}
-                      onClick={() => setPreferences((p) => ({...p, style: s}))}
+                      onClick={() => updatePreferences({style: s})}
                     >
                       <span className={`style-dot ${s}`} />
                       {s[0].toUpperCase() + s.slice(1)}
@@ -944,7 +982,7 @@ export default function DeskLab({page}: {page: Page}) {
                     disabled={!ready}
                     checked={preferences.quiet}
                     onChange={(e) =>
-                      setPreferences((p) => ({...p, quiet: e.target.checked}))
+                      updatePreferences({quiet: e.target.checked})
                     }
                   />{' '}
                   Keep the keyboard quiet
@@ -1020,6 +1058,33 @@ export default function DeskLab({page}: {page: Page}) {
                     </button>
                   </div>
                 </div>
+                <details className="setup-explanation">
+                  <summary>
+                    {valid ? 'Why this setup fits' : 'Review this setup'}
+                  </summary>
+                  <ul>
+                    {(valid ? validation.reasons : validation.warnings).map(
+                      (reason) => (
+                        <li key={reason}>{reason}</li>
+                      ),
+                    )}
+                  </ul>
+                  {validation.compromises.length > 0 && (
+                    <div className="setup-compromises">
+                      <strong>A few compromises</strong>
+                      <ul>
+                        {validation.compromises.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <p>
+                    Fit uses published footprints in a fixed layout. It does not
+                    assess ergonomics or load ratings. Styling props are not
+                    included.
+                  </p>
+                </details>
                 {shareUrl && (
                   <label className="share-field">
                     Share your workspace

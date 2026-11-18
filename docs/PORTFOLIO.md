@@ -10,12 +10,13 @@ DeskLab is a 3D workspace configurator and headless Shopify storefront that turn
 
 **DeskLab | Full-stack commerce and 3D configuration project**
 
-Next.js, TypeScript, React Three Fiber, Shopify Storefront API, Playwright
+Next.js, TypeScript, React Three Fiber, Shopify Storefront API, Redis, Playwright
 
 - Built an interactive workspace configurator with 3D previews, shareable configurations and a persistent shopping bag across an original 18-product catalog.
 - Implemented a deterministic setup planner that validates budget, combined product footprints, inventory and keyboard preferences, with the same checks applied to manual product swaps.
 - Integrated Shopify catalog, cart and hosted checkout with server-side variant, CAD price and stock validation; verified test payments, admin order state and inventory reservation.
 - Added distributed API quotas, origin validation, bounded requests, privacy-conscious diagnostics and separate gates for live AI and sandbox checkout.
+- Verified the production Redis Lua with four concurrent worker processes, atomic-denial and time-window checks, and real Redis failure cases in a credential-free local integration suite.
 
 These bullets describe implemented functionality and verified test-mode checkout. The Vercel Hobby site is deployed, with public checks covering one live AI brief, shared-link restoration, a test-payment error, a completed five-item order and the return to the storefront. Shopify admin confirmed both the earlier local and newer public orders as Paid, Unfulfilled and Test orders. The earlier order's inventory reservation was measured in admin; a read-only Storefront API query after the newer order confirmed available stock consistent with both orders. There is no physical fulfillment.
 
@@ -38,6 +39,7 @@ I built DeskLab to make a storefront behave like a useful design tool. A shopper
 1. Open the homepage and rotate the workspace with the pointer or rotation buttons. Show the static preview as an alternate experience.
 2. Enter a brief such as “A minimal and quiet setup under $500 for a 120 cm desk.” Show the returned products, total and constraint explanations.
 3. Swap a product manually. Demonstrate that an incompatible selection disables adding the setup and explains the problem.
+   Open “Why this setup fits” to show the current budget/dimension checks and palette or optional-item compromises. Invalid choices replace this reassurance with failing constraints.
 4. Copy the workspace URL, reopen it and show that products and structured preferences are restored.
 5. Add the setup to the bag, adjust a quantity and reload to show persistence.
 6. Explain the commerce boundary: checkout re-fetches Shopify variants and inventory. Continue to the configured test checkout and describe the verified successful-order and declined-payment paths. Use test payment details only.
@@ -64,6 +66,8 @@ Keep the demo's actual engine visible: `gemini` for successful live extraction a
 
 ## Evidence and limits
 
+The [November 18 builder and Redis update](RELIABILITY-CHECKS.md) passed lint, TypeScript, 109 domain/backend tests, and 49 production Chromium/WebKit checks with one existing intentional skip. The 14-scenario real Redis suite passed using four worker processes, 2,280 application Redis command attempts and zero external calls. The attempt count includes unavailable-transport attempts and excludes fixture inspection commands. Its adapter preserves production Lua, keys and arguments but substitutes a private local socket for hosted REST transport. It establishes bounded concurrency/failure behavior, not production scale or hosted reliability. Browser regressions force late responses to arrive despite cancellation and verify that newer inputs, results and loading state survive.
+
 As of November 15, 2026, the full backend suite passed 105/105 tests. The production Chromium/WebKit suite passed 33 tests, with one engine-specific pixel check intentionally skipped, and its production build succeeded. `pnpm audit --prod` reported no known vulnerabilities. Separate integration checks loaded the live 18-product Shopify catalog and completed an earlier local test checkout.
 
 Shopify admin inspection confirmed that earlier order for one Arc Desk was a paid, unfulfilled Test order at CAD $279 with free Standard shipping. Its timeline records declined and successful test payments. Quantity tracking was enabled, and that inspection showed 19 available plus one committed unit versus 20 seeded units. This verifies an inventory reservation for the earlier order, without physical fulfillment or a real charge. It is not an inventory measurement for the newer public five-item order.
@@ -74,7 +78,7 @@ A separate local live run completed November 15, 2026 at 18:37 UTC using `gemini
 
 GitHub CI and the Vercel production deployment succeeded at `e76ed067`, with server configuration scoped to production. Four public smoke requests passed: homepage and production headers, health readiness, all 18 live Shopify products and a feasible empty-brief rules recommendation. The anonymous homepage loads in a browser. That smoke created no cart, order or model call. The Escape dismissal fix also passed six repeated local Chrome/WebKit checks.
 
-The daily public-smoke schedule is enabled through the configured canonical URL in `DESKLAB_PUBLIC_URL`. Its first manual workflow run passed on `ee1ce24`. This establishes a working manual check and enabled schedule; a scheduled-run result has not yet been observed.
+The daily public-smoke schedule uses the configured canonical URL in `DESKLAB_PUBLIC_URL`. Its first manual workflow run passed on `ee1ce24`. Scheduled runs passed on [November 16](https://github.com/Saadullah-2004/desklab/actions/runs/43979055837) and [November 17, 2026](https://github.com/Saadullah-2004/desklab/actions/runs/44190040595), both at `6664920`. These observations verify the bounded check ran successfully on those dates, not an uptime percentage or future-delivery guarantee.
 
 Later public browser checks verified a warm, quiet CAD $650 / 120 cm brief: the UI reported AI interpretation, preserved the width and returned five products at CAD $540. A shared link restored the same preferences and five products. Public cart creation reached hosted Shopify checkout with the correct lines and test-gateway instructions. Test card 2 produced a generic payment-error banner and left checkout open. After switching to test card 1, checkout reported `completed` and displayed a Test Payment Gateway receipt. The order contained one each of Tidy Tray (CAD $34), Orbit Light ($69), Hush 75 ($99), Rise Shelf ($59) and Arc Desk ($279), totaling CAD $540 with free Standard shipping. Shopify admin confirmed the expected lines and totals, Paid and Unfulfilled status, and a Test order notice stating the gateway was in test mode when it was created. The timeline records the Bogus gateway failing to process test card 2 and then processing test card 1.
 

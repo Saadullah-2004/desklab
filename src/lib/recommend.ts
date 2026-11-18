@@ -113,6 +113,48 @@ export function validateSelectedSetup(
   return {valid: warnings.length === 0, warnings};
 }
 
+// Explain the current selection, including manual choices and restored links.
+// Only the shared validator can establish that the whole setup fits.
+export function evaluateSelectedSetup(
+  selected: Product[],
+  preferences: Preferences,
+): {
+  valid: boolean;
+  warnings: string[];
+  reasons: string[];
+  compromises: string[];
+} {
+  const validation = validateSelectedSetup(selected, preferences);
+  const reasons: string[] = [];
+  const compromises: string[] = [];
+  if (!validation.valid) return {...validation, reasons, compromises};
+
+  const total = selected.reduce((sum, product) => sum + product.priceCents, 0);
+  const desk = selected.find((product) => product.category === 'desk')!;
+  reasons.push(
+    `${formatMoney(total)} in products fits your ${formatMoney(preferences.budgetCents)} budget before tax and shipping.`,
+    `The ${desk.widthCm} cm desk fits within your ${preferences.deskWidthCm} cm space.`,
+    `Selected footprints fit the ${desk.widthCm} × ${desk.depthCm} cm desk in two rows with ${gapCm} cm clearance.`,
+  );
+  if (preferences.quiet)
+    reasons.push('The selected keyboard is marked quiet in the catalog.');
+  const matches = selected.filter((product) =>
+    product.styles.includes(preferences.style),
+  ).length;
+  reasons.push(
+    `${matches} of ${selected.length} pieces match your ${preferences.style} palette.`,
+  );
+  if (matches < selected.length)
+    compromises.push(
+      'This selection mixes finishes outside your preferred palette.',
+    );
+  for (const category of ['shelf', 'accessory'] as const) {
+    if (!selected.some((product) => product.category === category))
+      compromises.push(`This setup does not include an optional ${category}.`);
+  }
+  return {...validation, reasons, compromises};
+}
+
 export function recommendSetup(
   preferences: Preferences,
   catalog: Product[] = products,
@@ -228,36 +270,9 @@ export function recommendSetup(
     return result;
   }
 
-  const desk = result.products.find((product) => product.category === 'desk')!;
-  result.reasons.push(
-    `${formatMoney(result.totalCents)} in products fits your ${formatMoney(preferences.budgetCents)} budget before tax and shipping.`,
-  );
-  result.reasons.push(
-    `The ${desk.widthCm} cm desk fits within your ${preferences.deskWidthCm} cm space.`,
-  );
-  result.reasons.push(
-    `Selected footprints fit the ${desk.widthCm} × ${desk.depthCm} cm desk in two rows with ${gapCm} cm clearance.`,
-  );
-  if (preferences.quiet)
-    result.reasons.push(
-      'The selected keyboard is marked quiet in the catalog.',
-    );
-  const matches = result.products.filter((product) =>
-    product.styles.includes(preferences.style),
-  ).length;
-  result.reasons.push(
-    `${matches} of ${result.products.length} pieces match your ${preferences.style} palette.`,
-  );
-  if (matches < result.products.length)
-    result.warnings.push(
-      'Some finishes were mixed to keep the setup available, within budget and within the fit limits.',
-    );
-  for (const category of ['shelf', 'accessory'] as const) {
-    if (!result.products.some((product) => product.category === category))
-      result.warnings.push(
-        `An optional ${category} was left out to respect budget, fit or stock limits.`,
-      );
-  }
+  const evaluation = evaluateSelectedSetup(result.products, preferences);
+  result.reasons = evaluation.reasons;
+  result.warnings = evaluation.compromises;
   return result;
 }
 

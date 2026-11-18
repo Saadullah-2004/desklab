@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --conditions=react-server --import tsx --test tests/*.test.ts src/lib/*.test.ts",
+    "test:redis": "node --conditions=react-server --import tsx --test tests/redis/*.test.ts",
     "test:e2e": "playwright test",
     "smoke:public": "node --import tsx scripts/smoke-public.ts",
     "eval:ai": "node --conditions=react-server --import tsx scripts/ai-eval.ts",

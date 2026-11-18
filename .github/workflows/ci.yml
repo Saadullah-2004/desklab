@@ -35,6 +35,16 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Build isolated Redis test binary
+        run: |
+          curl --fail --silent --show-error --location https://download.redis.io/releases/redis-7.2.17.tar.gz --output "$RUNNER_TEMP/redis-7.2.17.tar.gz"
+          # Digest published at https://github.com/redis/redis-hashes/blob/master/README
+          echo "07c679c013fd82513299733bddf91999bbbc830351ec9ea985a533b09a595d76  $RUNNER_TEMP/redis-7.2.17.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/redis-7.2.17.tar.gz" -C "$RUNNER_TEMP"
+          make -C "$RUNNER_TEMP/redis-7.2.17" -j2 MALLOC=libc REDIS_CFLAGS='' REDIS_LDFLAGS='' redis-server
+          echo "REDIS_SERVER_BIN=$RUNNER_TEMP/redis-7.2.17/src/redis-server" >> "$GITHUB_ENV"
+      - name: Real Redis concurrency and failure tests
+        run: pnpm test:redis
       - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Production build and browser tests
         run: pnpm test:e2e
